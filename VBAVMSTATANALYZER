@@ -1,0 +1,1522 @@
+''''''Multi VMSTAT LOG ANALYZER'''''''
+
+
+'This VBA script formats cells and adds buttons to guide users through steps in running a vmstat log analyzer
+'in Excel. It provides instructions, sets default values, hides unnecessary columns,
+'and adds buttons to 'execute specific procedures for loading logs, configuring, and analyzing data.
+
+Sub FormatCellsAndAddButtons()
+    Dim ws As Worksheet
+    Set ws = ActiveSheet ' Assuming you want to use the current active sheet
+    
+    ' Merge cells B3 to D5 and set the title
+    With ws.Range("B3:D5")
+        .Merge
+        .value = "Vmstat log Analyzer" ' Title for the program
+        .HorizontalAlignment = xlCenter ' Center align the text
+        .VerticalAlignment = xlCenter ' Center align the text vertically
+        .Font.Size = 16 ' Set font size
+        .Font.Bold = True ' Set font bold
+    End With
+    
+    ' Merge cells B6 to D7 and add instructions
+    With ws.Range("B6:D7")
+        .Merge
+        .value = "Important: " & vbCrLf & _
+                 "1) Make sure you keep all the required logs in a single folder." & vbCrLf & _
+                 "2) Make sure you keep this analyzer Excel in that same folder and run it, otherwise, it won't work."
+        .HorizontalAlignment = xlCenter ' Center align the text
+        .VerticalAlignment = xlTop ' Align the text to the top
+        .WrapText = True ' Enable text wrapping
+        .Font.Color = RGB(255, 0, 0) ' Set font color to red
+    End With
+    
+    ' Set row height to accommodate the wrapped text
+    ws.Rows("6:7").RowHeight = 60
+    
+    ' Format cells with bold borders
+    With ws.Range("B10, B14, B16, C14, C16, D10, D14, D16")
+        .Borders.LineStyle = xlContinuous
+        .Borders.Weight = xlThick
+    End With
+    
+    ' Set default cell values
+    ws.Range("B10").value = 5
+    ' Set other default values as needed
+    ' ws.Range("B12").Value = "" ' Empty value for B12
+    ws.Range("B14").value = 1
+    ws.Range("B16").value = 2
+    ws.Range("C14").value = 3153
+    ws.Range("C16").value = 3152
+    ws.Range("D9").value = "Change these values as needed"
+    ws.Range("D10").value = "TimeInterval(sec)"
+    ws.Range("D14").value = "VMSTAT Window - Start | End (default: 1 | 99999)"
+    ws.Range("D16").value = "PT Run Window - Start | End (default: 2 | 99998)"
+    
+    ' Set default values for L1, M1, N1, and O1
+    ws.Range("L1").value = "Enter the server IP here"
+    ws.Range("M1").value = "VMSTAT-LOGNAME"
+    ws.Range("N1").value = "VMSTAT-LOGPATH"
+    ws.Range("O1").value = "TOTAL MEMORY OF SERVER"
+
+    ' Set default values for the new steps
+    ws.Range("B19").value = "Step ->1"
+    ws.Range("B20").value = "Choose the directory of vmstat logs"
+    ws.Range("B22").value = "Step2 -> Manually enter the ""server ip address"" and ""TOTAL MEMORY OF SERVER"" in L and o column"
+
+    ws.Range("B24").value = "Step3 ->"
+    ws.Range("B25").value = "Start analysis"
+
+    ' AutoFit columns D and L to O to adjust width based on content
+    ws.Columns("D:D").AutoFit
+    ws.Columns("L:O").AutoFit
+    
+    ' Hide columns F to K
+    ws.Columns("F:K").Hidden = True
+    
+    ' Add a button to run Sub1
+    Dim btn1 As Button
+    Set btn1 = ws.Buttons.Add(ws.Range("D18").Left, ws.Range("D18").Top, CalculateButtonWidth("Step 1) Choose the directory where you placed all the vmstat logs"), 30) ' Define button dimensions and position
+    With btn1
+        .OnAction = "RunSub1" ' Assign the macro to execute when the button is clicked
+        .Caption = "Step 1) Choose the directory where you placed all the vmstat logs" ' Text displayed on the button
+    End With
+    
+    ' Add a button to run Sub2
+    Dim btn2 As Button
+    Dim gap As Integer
+    gap = 50 ' Adjust the gap between buttons as desired
+    Set btn2 = ws.Buttons.Add(btn1.Left, btn1.Top + btn1.Height + gap, CalculateButtonWidth("Step3) Start Analysis"), 30) ' Define button dimensions and position
+    With btn2
+        .OnAction = "RunSub2" ' Assign the macro to execute when the button is clicked
+        .Caption = "Step3) Start Analysis" ' Text displayed on the button
+    End With
+End Sub
+
+Function CalculateButtonWidth(text As String) As Double
+    ' Function to calculate the width required for the button based on the text length
+    Dim btnWidth As Double
+    btnWidth = Len(text) * 8 ' Adjust the multiplication factor as needed
+    CalculateButtonWidth = btnWidth
+End Function
+
+
+Sub RunSub1()
+    ' Your code to execute when Button 1 is clicked goes here
+   ' MsgBox "Button 1 (Load Logs) clicked!"
+    LoadLogFiles
+End Sub
+
+Sub RunSub2()
+    ' Your code to execute when Button 2 is clicked goes here
+    
+    
+    'MsgBox "Button 2 (Configure) clicked!"
+    
+    Dim success As Boolean
+    success = LoopThroughPathsAndRunAnalyzer
+    
+    If Not success Then
+        MsgBox "Correct error and then ""Run Analysis"" Again. Process halted."
+        Exit Sub
+    End If
+    
+    
+    
+    ' Pause for 1 seconds (specified in seconds)
+    Application.Wait (Now + TimeValue("0:00:01"))
+    ' Proceed with ExportToJPEG and DeleteZeroSizedJPGs
+    
+    ExportToJPEG
+    
+    ' Pause for 1 seconds (specified in seconds)
+    Application.Wait (Now + TimeValue("0:00:01"))
+    DeleteZeroSizedJPGs
+    
+    LoadAndArrangeImagesAndCreateExcel
+    
+    MsgBox "Analysis completed successfully."
+End Sub
+
+
+
+
+
+
+
+'------------
+'This VBA function validates and processes data from an Excel worksheet,
+'ensuring numeric values in column O, 'non-zero values, and corresponding values in column L.
+'It then extracts file paths, total memory, and server 'names, constructs save names,
+'and executes a subroutine, displaying input data via message boxes.
+
+
+Function LoopThroughPathsAndRunAnalyzer() As Boolean
+    Dim SavePath As String
+    Dim LogFilePath As String
+    Dim TotalMemory As Long
+    Dim SaveName As String
+    Dim ServerName As String
+    Dim TotalMemoryValue As Variant
+    Dim ServerNameValue As Variant
+    Dim lastRow As Long
+    Dim i As Long
+    Dim ws As Worksheet
+    Dim fso As Object
+    Dim errorOccurred As Boolean
+    
+    ' Set current sheet as the worksheet context
+    Set ws = ActiveSheet
+    ' Create a FileSystemObject
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    
+    errorOccurred = False ' Initialize error flag
+    
+    ' Find the last row with data in column N
+    lastRow = ws.Cells(ws.Rows.Count, "N").End(xlUp).Row
+    
+    ' Check if each value in column O is numeric and not empty or text
+    For i = 2 To lastRow
+        TotalMemoryValue = ws.Cells(i, "O").value
+        
+        ' Check if TotalMemoryValue is numeric and not empty or text
+        If Not IsNumeric(TotalMemoryValue) Or IsEmpty(TotalMemoryValue) Or IsString(TotalMemoryValue) Then
+            MsgBox "Value in column O for row " & i & " is not numeric or empty. Please check.", vbExclamation
+            errorOccurred = True
+            Exit For
+        End If
+        
+        ' Check if TotalMemoryValue is zero
+        If TotalMemoryValue = 0 Then
+            MsgBox "Value in column O for row " & i & " cannot be zero. Please check.", vbExclamation
+            errorOccurred = True
+            Exit For
+        End If
+        
+        ' Check if there is a corresponding value in column L
+        ServerNameValue = ws.Cells(i, "L").value
+        
+        ' Check if ServerNameValue is empty or zero
+        If IsEmpty(ServerNameValue) Or ServerNameValue = 0 Then
+            MsgBox "There is no corresponding value in column L for row " & i & ". Please check.", vbExclamation
+            errorOccurred = True
+            Exit For
+        End If
+    Next i
+    
+    If errorOccurred Then
+        LoopThroughPathsAndRunAnalyzer = False ' Return False if error occurred
+        Exit Function
+    End If
+    
+    ' Loop through each row and process the data
+    For i = 2 To lastRow
+        ' Extract LogFilePath from column N
+        LogFilePath = ws.Cells(i, "N").value
+        
+        ' Extract TotalMemory from column O
+        TotalMemory = ws.Cells(i, "O").value
+        
+        ' Extract ServerName from column L
+        ServerName = ws.Cells(i, "L").value
+        
+        ' Extract the directory part from the LogFilePath
+        SavePath = fso.GetParentFolderName(LogFilePath)
+        
+        ' Perform string subtraction to get the desired SaveName
+        Dim fileName As String
+        Dim index As Long
+        index = InStr(SavePath, LogFilePath)
+        If index > 0 Then
+            fileName = Mid(SavePath, index + Len(LogFilePath))
+        Else
+            fileName = SavePath ' If LogFilePath is not found in SavePath, just use SavePath
+        End If
+        
+        ' Construct SaveName without the ".log" extension
+        SaveName = "Output_" & Left(ws.Cells(i, "M").value, Len(ws.Cells(i, "M").value) - 4) & "_"
+        
+        ' Display input data in a message box
+        'MsgBox "SavePath: " & SavePath & vbCrLf & _
+           '  "LogFilePath: " & LogFilePath & vbCrLf & _
+            ' "TotalMemory: " & TotalMemory & vbCrLf & _
+            '  "SaveName: " & SaveName & vbCrLf & _
+            '   "ServerName: " & ServerName
+        
+        ' Call Run_VMSTAT_Analyzer with extracted data
+        ' Include ServerName parameter
+        VMSTAT_Analyzer SavePath, LogFilePath, TotalMemory, SaveName, ServerName
+    Next i
+    
+    LoopThroughPathsAndRunAnalyzer = True ' Return True if successful
+End Function
+
+
+Function IsString(ByVal value As Variant) As Boolean
+    On Error Resume Next
+    IsString = IsError(CStr(value))
+    On Error GoTo 0
+End Function
+
+
+
+
+
+
+
+
+
+
+
+'***------------------------------------------------------------
+
+
+
+Sub VMSTAT_Analyzer(SavePath As String, LogFilePath As String, TotalMemory As Long, SaveName As String, ServerName As String)
+    On Error GoTo ErrHandler
+    Application.ScreenUpdating = False
+    
+    '**********  Getting & Validating Input Datas   **********
+   ' ServerName = ServerName
+   ' TimeInterval = Worksheets("Analyzer").Range("$B$10").value
+   ' TotalMemory = TotalMemory
+   ' Window_StartRow = Worksheets("Analyzer").Range("$B$14").value
+   ' Window_EndRow = Worksheets("Analyzer").Range("$C$14").value
+   ' PT_Run_StartRow = Worksheets("Analyzer").Range("$B$16").value
+   ' PT_Run_EndRow = Worksheets("Analyzer").Range("$C$16").value
+    
+    
+    
+Dim CurrentSheet As Worksheet
+    Set CurrentSheet = ThisWorkbook.ActiveSheet ' Assuming the code is in the same workbook as the data
+
+    ServerName = ServerName
+    TimeInterval = CurrentSheet.Range("$B$10").value
+    TotalMemory = TotalMemory
+    Window_StartRow = CurrentSheet.Range("$B$14").value
+    Window_EndRow = CurrentSheet.Range("$C$14").value
+    PT_Run_StartRow = CurrentSheet.Range("$B$16").value
+    PT_Run_EndRow = CurrentSheet.Range("$C$16").value
+    
+
+    
+    
+    If Trim(ServerName) = "" Or Trim(ServerName) = "Servers List" Then
+        MsgBox "Please enter a valid Server Name"
+        GoTo ExitHandler
+    End If
+    
+
+
+
+'**********   Browse & Open File to Analyze   **********
+'This VBA script opens a log file, copies its sheets, and then closes the file without saving changes.
+'It's a concise method to extract data from a log file for further processing or analysis in Excel.
+
+' Open the log file
+Dim wkbTemp As Workbook
+Set wkbTemp = Workbooks.Open(fileName:=LogFilePath)
+wkbTemp.Sheets.Copy
+wkbTemp.Close (False)
+
+
+
+'**********Copying VMSTAT data to Excel Sheet and Calculating Used CPU & Used Memory**********'
+
+'This VBA script processes raw server data in an Excel worksheet, identifying the server type,
+'cleaning the data, and preparing it for analysis. It removes unwanted rows and columns, sets column headers
+'based on server type, and calculates CPU and memory metrics. Finally, it populates the worksheet with formatted data for visualization and analysis.
+
+Dim wkbNew As Workbook
+Set wkbNew = ActiveWorkbook
+
+With wkbNew.Worksheets(1)
+    ' Copy to Excel and Text to Columns
+    .Columns("A:A").TextToColumns _
+        Destination:=Range("$A$1"), _
+        DataType:=xlDelimited, _
+        TextQualifier:=xlDoubleQuote, _
+        ConsecutiveDelimiter:=True, _
+        Tab:=False, Semicolon:=False, _
+        Comma:=False, Space:=True, _
+        Other:=False, OtherChar:=""
+
+    ' Find Server Type like LINUX or AIX or SunOS
+    Dim a As Long
+    Dim ServerType As String
+    For a = 1 To .UsedRange.Rows.Count
+        If .Range("$B$" & a).value = "r" Then
+            If .Range("$D$" & a).value = "swpd" Then
+                ServerType = "LINUX"
+            ElseIf .Range("$D$" & a).value = "avm" Then
+                ServerType = "AIX"
+            ElseIf .Range("$D$" & a).value = "w" Then
+                ServerType = "SunOS"
+            End If
+            Exit For
+        End If
+    Next
+
+    ' Remove Unwanted Rows where Cell Value is not an Integer
+    Dim b As Long
+    For b = 1 To .UsedRange.Rows.Count
+        .Range("$A$" & b).Select
+        If .Range("$A$" & b).value > 0 Then
+            Selection.Insert Shift:=xlToRight
+        End If
+        If Not IsNumeric(.Range("$B$" & b)) Then
+            .Rows(b).Delete
+            b = b - 1
+        End If
+    Next
+
+    ' Remove Unwanted Rows where Cell Value is Blank
+    .Columns(2).SpecialCells(xlCellTypeBlanks).EntireRow.Delete
+
+    ' Remove Unwanted Columns
+    If ServerType = "AIX" Then
+        .Range("S:Z").EntireColumn.Delete
+    ElseIf ServerType = "SunOS" Then
+        .Range("N:Q").EntireColumn.Delete 'disk values
+    End If
+
+    ' Clear First Row Contents
+    .Rows(1).ClearContents
+
+    ' Remove Unwanted Rows where data not in Execution Window
+    If Window_StartRow = 1 And Window_EndRow = 99999 Then
+        .Range("$A$1:$A" & Window_StartRow & ", $A$" & Window_EndRow & ":$A$99999").EntireRow.Delete
+    ElseIf Window_StartRow = 1 And Window_EndRow <> 99999 Then
+        .Range("$A$1:$A" & Window_StartRow & ", $A$" & Window_EndRow + 2 & ":$A$99999").EntireRow.Delete
+    ElseIf Window_StartRow <> 1 And Window_EndRow = 99999 Then
+        .Range("$A$1:$A" & Window_StartRow - 1 & ", $A$" & Window_EndRow & ":$A$99999").EntireRow.Delete
+    ElseIf Window_StartRow <> 1 And Window_EndRow <> 99999 Then
+        .Range("$A$1:$A" & Window_StartRow - 1 & ", $A$" & Window_EndRow + 2 & ":$A$99999").EntireRow.Delete
+    End If
+
+
+
+
+
+
+' Add Column Names based on ServerType
+If ServerType = "LINUX" Then
+    .Range("A1").value = "Elapsed Time (hh:mm:ss)"
+    .Range("$B$1").value = "Run in Queue"
+    .Range("$C$1").value = "Blocked IO Paging"
+    .Range("$D$1").value = "swpd"
+    .Range("$E$1").value = "free"
+    .Range("$F$1").value = "buff"
+    .Range("$G$1").value = "cache"
+    .Range("$H$1").value = "si"
+    .Range("$I$1").value = "so"
+    .Range("$J$1").value = "bi"
+    .Range("$K$1").value = "bo"
+    .Range("$L$1").value = "in"
+    .Range("$M$1").value = "cs"
+    .Range("$N$1").value = "User"
+    .Range("$O$1").value = "System"
+    .Range("$P$1").value = "Idle CPU (%)"
+    .Range("$Q$1").value = "Wait CPU (%)"
+    .Range("$R$1").value = "st"
+    .Range("$S$1").value = "Used CPU (%)"
+    .Range("$T$1").value = "Free Memory (MB)"
+    .Range("$U$1").value = "Cache Memory (MB)"
+    .Range("$V$1").value = "Used Memory (MB)"
+    .Range("$W$1").value = "Used Memory (%)"
+ElseIf ServerType = "AIX" Then
+    .Range("$A$1").value = "Elapsed Time (hh:mm:ss)"
+    .Range("$B$1").value = "Run in Queue"
+    .Range("$C$1").value = "Blocked IO Paging"
+    .Range("$D$1").value = "avm"
+    .Range("$E$1").value = "free"
+    .Range("$F$1").value = "re"
+    .Range("$G$1").value = "Page In"
+    .Range("$H$1").value = "Page Out"
+    .Range("$I$1").value = "fr"
+    .Range("$J$1").value = "Scan Rate"
+    .Range("$K$1").value = "cy"
+    .Range("$L$1").value = "in"
+    .Range("$M$1").value = "sy"
+    .Range("$N$1").value = "cs"
+    .Range("$O$1").value = "User"
+    .Range("$P$1").value = "System"
+    .Range("$Q$1").value = "Idle CPU (%)"
+    .Range("$R$1").value = "Wait CPU (%)"
+    .Range("$S$1").value = "Used CPU (%)"
+    .Range("$T$1").value = "Active Pages (MB)"
+    .Range("$U$1").value = "Free Memory (MB)"
+    .Range("$V$1").value = "Used Memory (MB)"
+    .Range("$W$1").value = "Used Memory (%)"
+ElseIf ServerType = "SunOS" Then
+    .Range("$A$1").value = "Elapsed Time (hh:mm:ss)"
+    .Range("$B$1").value = "Run in Queue"
+    .Range("$C$1").value = "Blocked IO Paging"
+    .Range("$D$1").value = "w"
+    .Range("$E$1").value = "swap"
+    .Range("$F$1").value = "free"
+    .Range("$G$1").value = "re"
+    .Range("$H$1").value = "mf"
+    .Range("$I$1").value = "Page In"
+    .Range("$J$1").value = "Page Out"
+    .Range("$K$1").value = "fr"
+    .Range("$L$1").value = "de"
+    .Range("$M$1").value = "Scan Rate"
+    .Range("$N$1").value = "in"
+    .Range("$O$1").value = "sy"
+    .Range("$P$1").value = "cs"
+    .Range("$Q$1").value = "User"
+    .Range("$R$1").value = "System"
+    .Range("$S$1").value = "Idle CPU (%)"
+    .Range("$T$1").value = "Used CPU (%)"
+    .Range("$U$1").value = "Free Memory (MB)"
+    .Range("$V$1").value = "Used Memory (MB)"
+    .Range("$W$1").value = "Used Memory (%)"
+End If
+
+
+
+' Calculate Number of Used Rows after Removing Unwanted Rows
+Dim rowCount As Long
+rowCount = .UsedRange.Rows.Count
+
+' Set X-axis Start Value and Format Column
+.Range("$A$2:$A$" & rowCount).NumberFormat = "hh:mm:ss"
+.Range("$A$2").value = DateValue("01/01") & " " & TimeValue("00:00:00")
+
+' Add Values for x-axis
+Dim c As Long
+For c = 3 To rowCount
+    .Range("$A$" & c).value = .Range("$A$" & (c - 1)).value + TimeSerial(0, 0, CInt(TimeInterval))
+Next
+
+' CPU Calculation and Memory Calculation
+Dim d As Long
+If ServerType = "LINUX" Then
+    For d = 2 To rowCount
+        ' Used CPU (%)
+        .Range("$S$" & d).value = .Range("$N$" & d).value + .Range("$O$" & d).value + .Range("$Q$" & d).value
+        ' Free Memory (MB)
+        .Range("$T$" & d).value = Round((.Range("$E$" & d).value / 1024), 2)
+        ' Cache Memory (MB)
+        .Range("$U$" & d).value = Round((.Range("$G$" & d).value / 1024), 2)
+        ' Used Memory (MB)
+        .Range("$V$" & d).value = Round((TotalMemory - .Range("$T$" & d).value), 2)
+        ' Used Memory (%)
+        .Range("$W$" & d).value = Round((.Range("$V$" & d).value / TotalMemory) * 100, 2)
+    Next
+ElseIf ServerType = "AIX" Then
+    For d = 2 To rowCount
+        ' Used CPU (%)
+        .Range("$S$" & d).value = .Range("$O$" & d).value + .Range("$P$" & d).value + .Range("$R$" & d).value
+        ' Active Pages (MB)
+        .Range("$T$" & d).value = Round(.Range("$D$" & d).value * 4096 / 1048576, 2)
+        ' Free Memory (MB)
+        .Range("$U$" & d).value = Round(.Range("$E$" & d).value * 4096 / 1048576, 2)
+        ' Used Memory (MB)
+        .Range("$V$" & d).value = Round((TotalMemory - .Range("$U$" & d).value), 2)
+        ' Used Memory (%)
+        .Range("$W$" & d).value = Round((.Range("$V$" & d).value / TotalMemory) * 100, 2)
+    Next
+ElseIf ServerType = "SunOS" Then
+    For d = 2 To rowCount
+        ' Used CPU (%)
+        .Range("$T$" & d).value = .Range("$Q$" & d).value + .Range("$R$" & d).value
+        ' Free Memory (MB)
+        .Range("$U$" & d).value = Round(.Range("$F$" & d).value / 1024, 2)
+        ' Used Memory (MB)
+        .Range("$V$" & d).value = Round(TotalMemory - .Range("$U$" & d).value, 2)
+        ' Used Memory (%)
+        .Range("$W$" & d).value = Round((.Range("$V$" & d).value / TotalMemory) * 100, 2)
+    Next
+End If
+
+
+
+
+
+
+
+
+
+
+
+
+
+'******* Calculation of Resource Utilization for Entire Runtime Window & Peak User Load *******"
+'This VBA script populates a resource utilization table in Excel with header names and
+'calculates average and maximum values for CPU and memory usage across different execution phases.
+'It adjusts the calculation based on the server type (Linux, AIX, or SunOS), providing insights into server performance metrics over a specified time window.
+
+
+' Adding Header Names for Resource Utilization Table
+.Range("$AC$5").value = ServerName & " Server - Resource Utilization"
+.Range("$AC$8").value = "Used CPU (%)"
+.Range("$AC$9").value = "Used Memory (%)"
+.Range("$AD$6").value = "Before Execution"
+.Range("$AE$6").value = "During Execution"
+.Range("$AG$6").value = "After Execution"
+.Range("$AE$7").value = "Average"
+.Range("$AF$7").value = "Maximum"
+
+' Get the PT Run Window Range
+Dim PT_Start As Long
+Dim PT_End As Long
+PT_Start = PT_Run_StartRow - Window_StartRow
+PT_End = PT_Run_EndRow - Window_StartRow
+
+' Resource Utilization Calculation for Whole Time Window
+If ServerType = "LINUX" Or ServerType = "AIX" Then
+    .Range("$AD$8").value = Round(WorksheetFunction.Average(.Range("$S$2:$S" & PT_Start)), 2)
+    .Range("$AE$8").value = Round(WorksheetFunction.Average(.Range("$S$" & PT_Start & ":$S" & PT_End)), 2)
+    .Range("$AF$8").value = Round(WorksheetFunction.Max(.Range("$S$" & PT_Start & ":$S" & PT_End)), 2)
+    .Range("$AG$8").value = Round(WorksheetFunction.Average(.Range("$S$" & PT_End & ":$S" & rowCount)), 2)
+ElseIf ServerType = "SunOS" Then
+    .Range("$AD$8").value = Round(WorksheetFunction.Average(.Range("$T$2:$T" & PT_Start)), 2)
+    .Range("$AE$8").value = Round(WorksheetFunction.Average(.Range("$T$" & PT_Start & ":$T" & PT_End)), 2)
+    .Range("$AF$8").value = Round(WorksheetFunction.Max(.Range("$T$" & PT_Start & ":$T" & PT_End)), 2)
+    .Range("$AG$8").value = Round(WorksheetFunction.Average(.Range("$T$" & PT_End & ":$T" & rowCount)), 2)
+End If
+
+.Range("$AD$9").value = Round(WorksheetFunction.Average(.Range("$W$2:$W" & PT_Start)), 2)
+.Range("$AE$9").value = Round(WorksheetFunction.Average(.Range("$W$" & PT_Start & ":$W" & PT_End)), 2)
+.Range("$AF$9").value = Round(WorksheetFunction.Max(.Range("$W$" & PT_Start & ":$W" & PT_End)), 2)
+.Range("$AG$9").value = Round(WorksheetFunction.Average(.Range("$W$" & PT_End & ":$W" & rowCount)), 2)
+
+
+
+
+
+
+
+
+'******* Formatting VMSTAT and Resource Utilization Tables *******"
+'This VBA script formats tables in an Excel worksheet, enhancing readability and aesthetics.
+'It sets font styles, cell colors, merges headers, adjusts column widths, and adds borders.
+'Additionally, it hides specific data columns for better presentation, optimizing the display of resource utilization metrics.
+
+    ' Setting FontName, FontSize and CellColor of Table Headers
+    With .Range("$A$1:$W$1,$AC$5:$AG$5")
+        .NumberFormat = "@"
+        .Font.Name = "Calibri"
+        .Font.Bold = True
+        .Font.Size = 11
+        .Interior.Pattern = xlSolid
+        .Interior.ColorIndex = 37
+    End With
+
+    With .Range("$AC$6:$AG$7,$AC$8:$AC$9")
+        .NumberFormat = "@"
+        .Font.Name = "Calibri"
+        .Font.Bold = True
+        .Font.Size = 10
+        .Interior.Pattern = xlSolid
+        .Interior.ColorIndex = 35
+    End With
+
+    ' Merging Table Headers
+    .Range("$AC$5:$AG$5").Merge
+    .Range("$AC$6:$AC$7").Merge
+    .Range("$AD$6:$AD$7").Merge
+    .Range("$AE$6:$AF$6").Merge
+    .Range("$AG$6:$AG$7").Merge
+
+    ' Setting FontName & FontSize of Data Cells
+    With .Range("$A$2:$W$" & rowCount & ",$AD$8:$AG$9")
+        .Font.Name = "Tahoma"
+        .Font.Size = 10
+    End With
+
+    ' Setting Outlines for All Cells, Alignment and Fit Columns
+    With .Range("$A$1:$W$" & rowCount & ",$AC$5:$AG$9")
+        .Cells.Columns.AutoFit
+        .RowHeight = 17
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlCenter
+        .Borders.LineStyle = xlContinuous
+        .Borders.ColorIndex = 15
+    End With
+
+    ' Setting Dark Outlines for Resource Utilization Table
+    .Range("$AC$5:$AG$5").Borders.Weight = xlMedium
+    .Range("$AC$6:$AG$9").Borders(xlEdgeLeft).Weight = xlMedium
+    .Range("$AC$6:$AG$9").Borders(xlEdgeRight).Weight = xlMedium
+    .Range("$AC$6:$AG$9").Borders(xlEdgeBottom).Weight = xlMedium
+
+    ' Setting Decimal Format in Data Cells of Resource Utilization Table
+    .Range("$AD$8:$AG$9").NumberFormat = "0.00"
+
+    ' Setting up the Column Width for the tables
+    .Columns("AC:AG").ColumnWidth = 15
+    .Columns("B:S").ColumnWidth = 15
+    .Columns("T:W").ColumnWidth = 20
+
+    ' Hiding VMSTAT data by Left Side
+    .Range("$X$1").Select
+    ActiveWindow.DisplayGridlines = False
+    ActiveWindow.ScrollRow = ActiveCell.Row
+    ActiveWindow.ScrollColumn = ActiveCell.Column
+
+End With
+
+
+
+
+'******* Generating a Chart for Paging *******"
+
+'This VBA script creates a chart in Excel, titled "Paging," to visualize server paging data.
+'The Chart 's appearance is customized based on the server type (AIX or SunOS),
+'with distinct data series and formatting. It provides insights into paging activity for the specified server.
+
+If ServerType = "AIX" Or ServerType = "SunOS" Then
+    Charts.Add
+    With ActiveChart
+        .Location Where:=xlLocationAsNewSheet, Name:="Paging"
+        .ChartType = xlXYScatterLinesNoMarkers
+        If ServerType = "AIX" Then
+            .SetSourceData Source:=wkbNew.Worksheets(1).Range("$A$1:$A$" & rowCount & ", $G$1:$G$" & rowCount & ", $H$1:$H$" & rowCount & ", $J$1:$J$" & rowCount), PlotBy:=xlColumns
+        ElseIf ServerType = "SunOS" Then
+            .SetSourceData Source:=wkbNew.Worksheets(1).Range("$A$1:$A$" & rowCount & ", $I$1:$I$" & rowCount & ", $J$1:$J$" & rowCount & ", $M$1:$M$" & rowCount), PlotBy:=xlColumns
+        End If
+        .SeriesCollection(1).Border.ColorIndex = 43
+        .SeriesCollection(2).Border.ColorIndex = 26
+        .SeriesCollection(3).Border.ColorIndex = 55
+        .SeriesCollection(1).Border.Weight = xlMedium
+        .SeriesCollection(2).Border.Weight = xlMedium
+        .SeriesCollection(3).Border.Weight = xlMedium
+        .ChartArea.Font.Name = "Calibri"
+        .HasTitle = True
+        With .ChartTitle
+            .Characters.text = ServerName & " Server - Paging"
+            .Font.Size = 16
+            .Font.Bold = True
+            .Font.ColorIndex = 2
+        End With
+        With .Legend
+            .Position = xlLegendPositionTop
+            .Border.LineStyle = 0
+            .Fill.Visible = False
+            .Font.Size = 11
+            .Font.Bold = True
+            .Font.ColorIndex = 1
+        End With
+        With .Axes(xlCategory, xlPrimary)
+            .HasTitle = True
+            .HasMajorGridlines = True
+            .MinimumScale = wkbNew.Worksheets(1).Range("$A$2").value
+            .MaximumScale = wkbNew.Worksheets(1).Range("$A$" & rowCount).value
+            .MajorUnit = (wkbNew.Worksheets(1).Range("$A$" & rowCount).value - wkbNew.Worksheets(1).Range("$A$2").value) / 8
+            .CrossesAt = .MinimumScale
+            With .AxisTitle
+                .Characters.text = wkbNew.Worksheets(1).Range("$A$1").text
+                .Font.Size = 11
+                .Font.ColorIndex = 1
+            End With
+            With .TickLabels
+                .Font.Bold = False
+                .Font.Size = 9
+                .Font.ColorIndex = 1
+            End With
+            With .MajorGridlines
+                .Border.LineStyle = xlDot
+                .Border.Weight = xlThin
+                .Border.ColorIndex = 16
+            End With
+        End With
+        With .Axes(xlValue)
+            .HasTitle = True
+            .MinimumScale = 0
+            .CrossesAt = 0
+            With .AxisTitle
+                .Characters.text = "Value (#)"
+                .Font.Size = 11
+                .Font.ColorIndex = 1
+            End With
+            With .TickLabels
+                .Font.Bold = False
+                .Font.Size = 9
+                .Font.ColorIndex = 1
+            End With
+            With .MajorGridlines
+                .Border.LineStyle = xlDot
+                .Border.Weight = xlThin
+                .Border.ColorIndex = 16
+            End With
+        End With
+        With .PlotArea
+            .Interior.Color = RGB(147, 205, 221)
+            .Border.ColorIndex = 16
+            .Border.Weight = xlMedium
+        End With
+        With .ChartArea
+            .Interior.ColorIndex = 31
+            .Border.ColorIndex = 1
+            .Border.Weight = xlMedium
+        End With
+        .ChartArea.Select
+    End With
+End If
+
+
+
+
+
+
+
+
+'******* Creating a Chart for Process Queue *******"
+ 'This VBA script creates a new chart in Excel, representing data from a specified range.
+ 'It customizes various aspects of the chart's appearance, including title, legend, axes,
+ 'gridlines, and plot area. The resulting chart is visually appealing and informative, designed for displaying "Process Queue" data from a server.
+ 
+ 
+ 
+ Charts.Add
+With ActiveChart
+    .Location Where:=xlLocationAsNewSheet, Name:="Process Queue"
+    .ChartType = xlXYScatterLinesNoMarkers
+    .SetSourceData Source:=wkbNew.Worksheets(1).Range("$A$1:$A$" & rowCount & ", $B$1:$B$" & rowCount & ", $C$1:$C$" & rowCount), PlotBy:=xlColumns
+    .SeriesCollection(1).Border.ColorIndex = 55
+    .SeriesCollection(2).Border.ColorIndex = 43
+    .SeriesCollection(1).Border.Weight = xlMedium
+    .SeriesCollection(2).Border.Weight = xlMedium
+    .ChartArea.Font.Name = "Calibri"
+    .HasTitle = True
+    With .ChartTitle
+        .Characters.text = ServerName & " Server - Process Queue"
+        .Font.Size = 16
+        .Font.Bold = True
+        .Font.ColorIndex = 2
+    End With
+    With .Legend
+        .Position = xlLegendPositionTop
+        .Border.LineStyle = 0
+        .Fill.Visible = False
+        .Font.Size = 11
+        .Font.Bold = True
+        .Font.ColorIndex = 1
+    End With
+    With .Axes(xlCategory, xlPrimary)
+        .HasTitle = True
+        .HasMajorGridlines = True
+        .MinimumScale = wkbNew.Worksheets(1).Range("$A$2").value
+        .MaximumScale = wkbNew.Worksheets(1).Range("$A$" & rowCount).value
+        .MajorUnit = (wkbNew.Worksheets(1).Range("$A$" & rowCount).value - wkbNew.Worksheets(1).Range("$A$2").value) / 8
+        .CrossesAt = .MinimumScale
+        With .AxisTitle
+            .Characters.text = wkbNew.Worksheets(1).Range("$A$1").text
+            .Font.Size = 11
+            .Font.ColorIndex = 1
+        End With
+        With .TickLabels
+            .Font.Bold = False
+            .Font.Size = 9
+            .Font.ColorIndex = 1
+        End With
+        With .MajorGridlines
+            .Border.LineStyle = xlDot
+            .Border.Weight = xlThin
+            .Border.ColorIndex = 16
+        End With
+    End With
+    With .Axes(xlValue)
+        .HasTitle = True
+        .MinimumScale = 0
+        .CrossesAt = 0
+        With .AxisTitle
+            .Characters.text = "Value (#)"
+            .Font.Size = 11
+            .Font.ColorIndex = 1
+        End With
+        With .TickLabels
+            .Font.Bold = False
+            .Font.Size = 9
+            .Font.ColorIndex = 1
+        End With
+        With .MajorGridlines
+            .Border.LineStyle = xlDot
+            .Border.Weight = xlThin
+            .Border.ColorIndex = 16
+        End With
+    End With
+    With .PlotArea
+        .Interior.Color = RGB(147, 205, 221)
+        .Border.ColorIndex = 16
+        .Border.Weight = xlMedium
+    End With
+    With .ChartArea
+        .Interior.ColorIndex = 31
+        .Border.ColorIndex = 1
+        .Border.Weight = xlMedium
+    End With
+    .ChartArea.Select
+End With
+
+ 
+ 
+ 
+ 
+ 
+'******* Generating a Chart for Memory Utilization *******"
+ 'This VBA code segment generates a chart for memory utilization based on the server type.
+ 'It creates a new worksheet and sets various formatting properties for the chart and its elements.
+ 'The chart displays memory utilization over time, with different series representing various memory-related metrics.
+ 
+ 
+Charts.Add
+With ActiveChart
+    .Location Where:=xlLocationAsNewSheet, Name:="Memory Utilization"
+    .ChartType = xlXYScatterLinesNoMarkers
+    If ServerType = "LINUX" Or ServerType = "AIX" Then
+        .SetSourceData Source:=wkbNew.Worksheets(1).Range("$A$1:$A$" & rowCount & ", $T$1:$T$" & rowCount & ", $U$1:$U$" & rowCount & ", $V$1:$V$" & rowCount), PlotBy:=xlColumns
+        .SeriesCollection(1).Border.ColorIndex = 25
+        .SeriesCollection(2).Border.ColorIndex = 26
+        .SeriesCollection(3).Border.ColorIndex = 3
+        .SeriesCollection(1).Border.Weight = xlMedium
+        .SeriesCollection(2).Border.Weight = xlMedium
+        .SeriesCollection(3).Border.Weight = xlMedium
+    ElseIf ServerType = "SunOS" Then
+        .SetSourceData Source:=wkbNew.Worksheets(1).Range("$A$1:$A$" & rowCount & ", $U$1:$U$" & rowCount & ", $V$1:$V$" & rowCount), PlotBy:=xlColumns
+        .SeriesCollection(1).Border.ColorIndex = 25
+        .SeriesCollection(2).Border.ColorIndex = 3
+        .SeriesCollection(1).Border.Weight = xlMedium
+        .SeriesCollection(2).Border.Weight = xlMedium
+    End If
+    .ChartArea.Font.Name = "Calibri"
+    .HasTitle = True
+    With .ChartTitle
+        .Characters.text = ServerName & " Server - Memory Utilization"
+        .Font.Size = 16
+        .Font.Bold = True
+        .Font.ColorIndex = 2
+    End With
+    With .Legend
+        .Position = xlLegendPositionTop
+        .Border.LineStyle = 0
+        .Fill.Visible = False
+        .Font.Size = 11
+        .Font.Bold = True
+        .Font.ColorIndex = 1
+    End With
+    With .Axes(xlCategory, xlPrimary)
+        .HasTitle = True
+        .HasMajorGridlines = True
+        .MinimumScale = wkbNew.Worksheets(1).Range("$A$2").value
+        .MaximumScale = wkbNew.Worksheets(1).Range("$A$" & rowCount).value
+        .MajorUnit = (wkbNew.Worksheets(1).Range("$A$" & rowCount).value - wkbNew.Worksheets(1).Range("$A$2").value) / 8
+        .CrossesAt = .MinimumScale
+        With .AxisTitle
+            .Characters.text = wkbNew.Worksheets(1).Range("$A$1").text
+            .Font.Size = 11
+            .Font.ColorIndex = 1
+        End With
+        With .TickLabels
+            .Font.Bold = False
+            .Font.Size = 9
+            .Font.ColorIndex = 1
+        End With
+        With .MajorGridlines
+            .Border.LineStyle = xlDot
+            .Border.Weight = xlThin
+            .Border.ColorIndex = 16
+        End With
+    End With
+    With .Axes(xlValue)
+        .HasTitle = True
+        .MinimumScale = 0
+        .CrossesAt = 0
+        With .AxisTitle
+            .Characters.text = "Value (MB)"
+            .Font.Size = 11
+            .Font.ColorIndex = 1
+        End With
+        With .TickLabels
+            .Font.Bold = False
+            .Font.Size = 9
+            .Font.ColorIndex = 1
+        End With
+        With .MajorGridlines
+            .Border.LineStyle = xlDot
+            .Border.Weight = xlThin
+            .Border.ColorIndex = 16
+        End With
+    End With
+    With .PlotArea
+        .Interior.Color = RGB(147, 205, 221)
+        .Border.ColorIndex = 16
+        .Border.Weight = xlMedium
+    End With
+    With .ChartArea
+        .Interior.ColorIndex = 31
+        .Border.ColorIndex = 1
+        .Border.Weight = xlMedium
+    End With
+    .ChartArea.Select
+End With
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+'******* Generating a Chart for CPU Utilization *******"
+
+'This VBA code snippet generates a chart for CPU utilization based on the server type.
+'It creates a new worksheet, copies specific data from another worksheet to this new worksheet, and then auto-fits row heights.
+'Additionally, it sets various formatting properties
+'for the chart and its elements, such as title, legend, axes, gridlines, plot area, and chart area.
+
+
+Charts.Add
+
+With ActiveChart
+    .Location Where:=xlLocationAsNewSheet, Name:="CPU Utilization"
+    .ChartType = xlXYScatterLinesNoMarkers 'xlXYScatterSmoothNoMarkers
+
+    If ServerType = "LINUX" Then
+        .SetSourceData Source:=wkbNew.Worksheets(1).Range("$A$1:$A$" & rowCount & ", $P$1:$P$" & rowCount & ", $Q$1:$Q$" & rowCount & ", $S$1:$S$" & rowCount), PlotBy:=xlColumns
+        .SeriesCollection(1).Border.ColorIndex = 32
+        .SeriesCollection(2).Border.ColorIndex = 1
+        .SeriesCollection(3).Border.ColorIndex = 3
+        .SeriesCollection(1).Border.Weight = xlMedium
+        .SeriesCollection(2).Border.Weight = xlMedium
+        .SeriesCollection(3).Border.Weight = xlMedium
+    ElseIf ServerType = "AIX" Then
+        .SetSourceData Source:=wkbNew.Worksheets(1).Range("$A$1:$A$" & rowCount & ", $Q$1:$Q$" & rowCount & ", $R$1:$R$" & rowCount & ", $S$1:$S$" & rowCount), PlotBy:=xlColumns
+        .SeriesCollection(1).Border.ColorIndex = 32
+        .SeriesCollection(2).Border.ColorIndex = 1
+        .SeriesCollection(3).Border.ColorIndex = 3
+        .SeriesCollection(1).Border.Weight = xlMedium
+        .SeriesCollection(2).Border.Weight = xlMedium
+        .SeriesCollection(3).Border.Weight = xlMedium
+    ElseIf ServerType = "SunOS" Then
+        .SetSourceData Source:=wkbNew.Worksheets(1).Range("$A$1:$A$" & rowCount & ", $S$1:$S$" & rowCount & ", $T$1:$T$" & rowCount), PlotBy:=xlColumns
+        .SeriesCollection(1).Border.ColorIndex = 32
+        .SeriesCollection(2).Border.ColorIndex = 3
+        .SeriesCollection(1).Border.Weight = xlMedium
+        .SeriesCollection(2).Border.Weight = xlMedium
+    End If
+
+    .ChartArea.Font.Name = "Calibri"
+    .HasTitle = True
+    With .ChartTitle
+        .Characters.text = ServerName & " Server - CPU Utilization"
+        .Font.Size = 16
+        .Font.Bold = True
+        .Font.ColorIndex = 2
+    End With
+
+    With .Legend
+        .Position = xlLegendPositionTop
+        .Border.LineStyle = 0
+        .Fill.Visible = False
+        .Font.Size = 11
+        .Font.Bold = True
+        .Font.ColorIndex = 1
+    End With
+
+    With .Axes(xlCategory, xlPrimary)
+        .HasTitle = True
+        .HasMajorGridlines = True
+        .MinimumScale = wkbNew.Worksheets(1).Range("$A$2").value
+        .MaximumScale = wkbNew.Worksheets(1).Range("$A$" & rowCount).value
+        .MajorUnit = (wkbNew.Worksheets(1).Range("$A$" & rowCount).value - wkbNew.Worksheets(1).Range("$A$2").value) / 8
+        .CrossesAt = .MinimumScale
+        With .AxisTitle
+            .Characters.text = wkbNew.Worksheets(1).Range("$A$1").text
+            .Font.Size = 11
+            .Font.ColorIndex = 1
+        End With
+        With .TickLabels
+            .Font.Bold = False
+            .Font.Size = 9
+            .Font.ColorIndex = 1
+        End With
+        With .MajorGridlines
+            .Border.LineStyle = xlDot 'xlDash xlDashdot xlContinuous xlDot
+            .Border.Weight = xlThin 'xlThin xlThick
+            .Border.ColorIndex = 16
+        End With
+    End With
+
+    With .Axes(xlValue)
+        .HasTitle = True
+        .MinimumScale = 0
+        .MaximumScale = 100
+        .MajorUnit = 10
+        .CrossesAt = 0
+        With .AxisTitle
+            .Characters.text = "Value (%)"
+            .Font.Size = 11
+            .Font.ColorIndex = 1
+        End With
+        With .TickLabels
+            .Font.Bold = False
+            .Font.Size = 9
+            .Font.ColorIndex = 1
+        End With
+        With .MajorGridlines
+            .Border.LineStyle = xlDot 'xlDash xlDashdot xlContinuous xlDot
+            .Border.Weight = xlThin 'xlThin xlThick
+            .Border.ColorIndex = 16
+        End With
+    End With
+
+    With .PlotArea
+        .Interior.Color = RGB(147, 205, 221)
+        .Border.ColorIndex = 16
+        .Border.Weight = xlMedium
+    End With
+
+    With .ChartArea
+        .Interior.ColorIndex = 31
+        '.Fill.OneColorGradient Style:=msoGradientFromCenter, Variant:=2, Degree:=1
+        .Border.ColorIndex = 1
+        .Border.Weight = xlMedium
+    End With
+
+    .ChartArea.Select
+End With
+
+'********SAVE Server - Resource Utilization BLOCK*********
+'This VBA code segment creates a new worksheet in the active workbook, copies specific data from another worksheet,
+'and pastes it into the new one. It then auto-fits row heights, saves the workbook with a specified file name and format,
+'and closes it without saving changes to the original file.
+'Finally, it displays a message box indicating the completion of the analysis and the saved file's location.
+
+Dim wsCOW As Worksheet
+Set wsCOW = ActiveWorkbook.Worksheets.Add ' Add a new worksheet to the same workbook
+Dim newName As String
+newName = "Z" & SaveName
+wsCOW.Name = newName
+' Copy the data from the original worksheet to the new worksheet
+ActiveWorkbook.Worksheets(2).Range("AC5:AG9").Copy Destination:=wsCOW.Range("A1")
+
+'Optionally, clear the original data from the original worksheet
+'wkbNew.Worksheets(4).Range("AC5:AG9").ClearContents
+
+
+' Auto-fit row height for specific rows
+wsCOW.Columns.AutoFit
+
+'*****************
+
+
+
+
+' Suppress alerts to prevent overwrite confirmation
+Application.DisplayAlerts = False
+
+' Save the workbook
+Dim OutputFilePath As String
+OutputFilePath = SavePath & "\" & SaveName & ".xlsx"
+
+' Save the workbook with the specified file name and format
+wkbNew.SaveAs fileName:=OutputFilePath, FileFormat:=xlOpenXMLWorkbook
+
+' Close the workbook without saving changes to the original file
+wkbNew.Close SaveChanges:=False
+
+' Re-enable alerts
+Application.DisplayAlerts = True
+
+' Show a message box indicating that the analysis is complete and the file has been saved
+'MsgBox "Analysis complete. Output file saved as: " & OutputFilePath, vbInformation
+
+ExitHandler:
+    Application.ScreenUpdating = True
+    Exit Sub
+
+
+
+ErrHandler:
+    MsgBox Err.Description
+    wkbNew.Close (False)
+    Resume ExitHandler
+
+CloseOnError:
+    wkbNew.Close (False)
+    Exit Sub
+End Sub
+
+
+
+'----------------------------------------------
+'----------------------------------------------
+'----------------------------------------------
+'----------------------------------------------
+'This VBA script loads vmstat log files from a user-selected folder, identifies vmstat log files, and
+'populates file names and paths in columns M and N of an Excel worksheet.
+'Additionally, it prompts the user 'to manually enter IP addresses and total memory for each server in column L and O respectively.
+
+
+Sub LoadLogFiles()
+    Dim folderPath As String
+    Dim logFileName As String
+    Dim fullLogFilePath As String
+    Dim logFilesFolder As Object
+    Dim logFile As Object
+    Dim ws As Worksheet
+    Dim rowNum As Integer
+    Dim rowCount As Integer
+    
+    ' Prompt user to select a folder containing .log files
+    With Application.FileDialog(msoFileDialogFolderPicker)
+        .Title = "Select Folder Containing .log Files"
+        .AllowMultiSelect = False
+        If .Show <> -1 Then Exit Sub ' User canceled
+        folderPath = .SelectedItems(1)
+    End With
+    
+   
+    ' Set reference to current worksheet
+    Set ws = ThisWorkbook.ActiveSheet
+    
+    ' Clear existing data in columns M, N, and O
+    ws.Range("M:N").ClearContents
+    ws.Range("O:O").ClearContents
+    ws.Range("L:L").ClearContents
+    ' Write headers
+   ' Set default values for L1, M1, N1, and O1
+    ws.Range("L1").value = "Enter the server IP here"
+    ws.Range("M1").value = "VMSTAT-LOGNAME"
+    ws.Range("N1").value = "VMSTAT-LOGPATH"
+    ws.Range("O1").value = "TOTAL MEMORY OF SERVER"
+    ' Find the next available row in the current worksheet
+    rowNum = 2 ' Start from row 2 since row 1 contains headers
+    
+    ' Get list of .log files in selected folder
+    Set logFilesFolder = CreateObject("Scripting.FileSystemObject").GetFolder(folderPath)
+  For Each logFile In logFilesFolder.files
+    If LCase(Right(logFile.Name, 4)) = ".log" Then
+        logFileName = logFile.Name
+        fullLogFilePath = logFile.Path
+        
+        ' Check if file is a vmstat log file
+        If IsVmstatLogFile(fullLogFilePath) Then
+            ws.Cells(rowNum, "M").value = logFileName
+            ws.Cells(rowNum, "N").value = fullLogFilePath
+            ' Increment row number for next entry
+            rowNum = rowNum + 1
+        Else
+            MsgBox logFileName & " is not a vmstat log file.", vbExclamation
+             ' Clear data in columns M and N (except the headers)
+         ws.Range("M2:N" & ws.Cells(ws.Rows.Count, "N").End(xlUp).Row).ClearContents
+            Exit Sub ' Stop loading log files
+        End If
+    End If
+Next logFile
+    
+    ' Count non-empty cells in column N (excluding header)
+    rowCount = Application.WorksheetFunction.CountA(ws.Range("N:N")) - 1
+    
+    ' Set default value for ServerTotalMemorySize in column O based on the count in column N
+   ' If rowCount > 0 Then
+    '    ws.Range("O2:O" & rowCount + 1).value = "12345"
+   ' End If
+    Columns("M:O").AutoFit
+    MsgBox "Log files loaded successfully." & vbCrLf & "Next, manually enter ""IP address"" and ""Total Memory"" for each server in L And O Column.", vbInformation
+
+End Sub
+
+Function IsVmstatLogFile(FilePath As String) As Boolean
+    Dim fileContent As String
+    Dim lines As Variant
+    Dim line As Variant
+    
+    On Error Resume Next ' Ignore errors if file cannot be opened
+    
+    ' Read contents of the file
+    Open FilePath For Input As #1
+    fileContent = Input$(LOF(1), 1)
+    Close #1
+    
+    On Error GoTo 0 ' Resume normal error handling
+    
+    If fileContent <> "" Then
+        ' Split file content into lines
+        lines = Split(fileContent, vbCrLf)
+        
+        ' Check if the file starts with the vmstat header
+        For Each line In lines
+            If InStr(line, "procs") = 1 Then
+                IsVmstatLogFile = True
+                Exit Function
+            End If
+        Next line
+    End If
+    
+    IsVmstatLogFile = False
+End Function
+
+
+'----------------------------------------------
+'----------------------------------------------
+'----------------------------------------------
+'----------------------------------------------
+'This VBA script automates the process of exporting data from each worksheet and chart in Excel workbooks 'within the same directory as the script to JPEG image files
+
+Sub ExportToJPEG()
+    Dim objFSO As Object
+    Dim objFolder As Object
+    Dim objFile As Object
+    Dim wb As Workbook
+    Dim Sheet As Object
+    Dim fileName As String
+    Dim ExcelFilePath As String
+    Dim Plage As Range
+    Dim FilePath As String
+    Dim FullFilePath As String
+    Dim StartCell As Range
+    Dim chartSheet As Chart
+    Dim exportPath As String
+    Dim parentFilename As String
+    
+    ' Set the values for the variables
+    fileName = "Screenshot"
+    ' Dynamically set ExcelFilePath to the current workbook's path
+    ExcelFilePath = ThisWorkbook.Path & "\"
+    ' Get the path of the current Excel file
+    exportPath = ExcelFilePath
+    ' Extract the parent filename without extension
+    parentFilename = Left(ThisWorkbook.Name, Len(ThisWorkbook.Name) - Len(".xlsm"))
+    
+    ' Set up FileSystemObject to work with files and folders
+    Set objFSO = CreateObject("Scripting.FileSystemObject")
+    Set objFolder = objFSO.GetFolder(ExcelFilePath)
+    
+    ' Loop through each file in the folder
+    For Each objFile In objFolder.files
+        ' Check if the file is an Excel file and not the current file
+        If objFile.Name <> ThisWorkbook.Name And objFSO.GetExtensionName(objFile.Name) = "xlsx" Then
+            ' Check if the file is not a temporary file
+            If Not IsTemporaryFile(objFile.Name) Then
+                ' Open the workbook
+                Set wb = Workbooks.Open(objFile.Path)
+                
+                ' Loop through each sheet in the workbook
+                For Each Sheet In wb.Sheets
+                    If TypeName(Sheet) = "Worksheet" Then
+                        ' Set the range to be captured using UsedRange
+                        Set Plage = Sheet.UsedRange
+                        ' Check if there's data on the sheet
+                        If Not Plage Is Nothing Then
+                            ' Copy the range as a picture
+                            Plage.CopyPicture
+                            ' Create a chart object and paste the picture
+                            With Sheet.ChartObjects.Add(0, 0, Plage.Width, Plage.Height)
+                                .Activate
+                                .Chart.Paste
+                                ' Construct the destination file path for the image file
+                                FullFilePath = exportPath & parentFilename & "_" & Replace(wb.Name, ".xlsx", "") & "_" & Sheet.Name & ".jpg"
+                                ' Attempt to export the chart as a JPG image
+                                On Error Resume Next ' Ignore errors
+                                .Chart.Export FullFilePath, "JPG"
+                                On Error GoTo 0 ' Restore default error handling
+                            End With
+                            ' Delete the temporary chart object
+                            Sheet.ChartObjects(Sheet.ChartObjects.Count).Delete
+                        End If
+                    ElseIf TypeName(Sheet) = "Chart" Then
+                        ' Export the chart as JPEG with sheet name
+                        FullFilePath = exportPath & parentFilename & "_" & Replace(wb.Name, ".xlsx", "") & "_" & Sheet.Name & ".jpg"
+                        On Error Resume Next ' Ignore errors
+                        Sheet.Export FullFilePath, "JPEG"
+                        On Error GoTo 0 ' Restore default error handling
+                    End If
+                Next Sheet
+                
+                ' Close the workbook without saving changes
+                wb.Close False
+            End If
+        End If
+    Next objFile
+    
+    ' Clean up
+    Set Plage = Nothing
+    Set wb = Nothing
+    Set objFolder = Nothing
+    Set objFSO = Nothing
+    
+    'MsgBox "Export completed successfully to: " & exportPath, vbInformation
+End Sub
+
+Function IsTemporaryFile(fileName As String) As Boolean
+    Dim tempFilePrefixes() As String
+    Dim tempFileExtensions() As String
+    Dim i As Integer
+    
+    ' Define prefixes and extensions typically associated with temporary files
+    tempFilePrefixes = Split("~$", " ")
+    tempFileExtensions = Split(".tmp .temp", " ")
+    
+    ' Check if the file name starts with a temporary prefix or has a temporary extension
+    For i = LBound(tempFilePrefixes) To UBound(tempFilePrefixes)
+        If Left(fileName, Len(tempFilePrefixes(i))) = tempFilePrefixes(i) Then
+            IsTemporaryFile = True
+            Exit Function
+        End If
+    Next i
+    
+    For i = LBound(tempFileExtensions) To UBound(tempFileExtensions)
+        If Right(fileName, Len(tempFileExtensions(i))) = tempFileExtensions(i) Then
+            IsTemporaryFile = True
+            Exit Function
+        End If
+    Next i
+    
+    ' If no match found, it's not a temporary file
+    IsTemporaryFile = False
+End Function
+
+
+
+'----------------------------------------------
+'----------------------------------------------
+'----------------------------------------------
+'----------------------------------------------
+
+'This VBA script is designed to delete any zero-sized JPG files found within the directory
+'where the Excel 'workbook containing the script is located.
+
+Sub DeleteZeroSizedJPGs()
+    Dim objFSO As Object
+    Dim objFolder As Object
+    Dim objFile As Object
+    Dim strFilePath As String
+    
+    ' Create a FileSystemObject
+    Set objFSO = CreateObject("Scripting.FileSystemObject")
+    
+    ' Get the current directory
+    strFilePath = ThisWorkbook.Path
+    
+    ' Set the folder object
+    Set objFolder = objFSO.GetFolder(strFilePath)
+    
+    ' Loop through each file in the folder
+    For Each objFile In objFolder.files
+        ' Check if the file is a JPG and has zero size
+        If LCase(Right(objFile.Name, 4)) = ".jpg" And objFile.Size = 0 Then
+            ' Delete the file
+            objFile.Delete
+        End If
+    Next objFile
+    
+    ' Release objects from memory
+    Set objFile = Nothing
+    Set objFolder = Nothing
+    Set objFSO = Nothing
+    
+   'MsgBox "Zero-sized JPG files deleted successfully.", vbInformation
+End Sub
+
+'----------------------------------------------
+'----------------------------------------------
+'----------------------------------------------
+'----------------------------------------------
+
+' This VBA script automates the process of loading images from a specified folder,
+'arranging them in a grid ' ' layout within an Excel worksheet, and then saving the worksheet as a new Excel file
+
+Sub LoadAndArrangeImagesAndCreateExcel()
+    Dim fso As Object
+    Dim imagePath As String
+    Dim imgName As String
+    Dim imgCounter As Integer
+    Dim imgTop As Integer
+    Dim imgLeft As Integer
+    Dim imgWidth As Integer
+    Dim imgHeight As Integer
+    Dim imgShape As Shape
+    Dim columnOffset As Integer
+    Dim rowSpacing As Integer
+    Dim maxColumns As Integer
+    Dim maxRows As Integer
+    Dim files() As String
+    Dim i As Integer
+    Dim excelPath As String
+    Dim newWorkbook As Workbook
+    Dim newWorksheet As Worksheet
+    
+    ' Get Excel file directory path
+    excelPath = ThisWorkbook.Path & "\"
+    ' Set image path to Excel file directory
+    imagePath = excelPath
+    
+    ' Check if the file "FINALoutputWithAllGRAPHs.xlsx" already exists and delete it if it does
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    If fso.FileExists(excelPath & "FINALoutputWithAllGRAPHs.xlsx") Then
+        fso.DeleteFile (excelPath & "FINALoutputWithAllGRAPHs.xlsx")
+    End If
+    
+    ' Create a new Excel workbook
+    Set newWorkbook = Workbooks.Add
+    ' Set a reference to the first worksheet in the new workbook
+    Set newWorksheet = newWorkbook.Sheets(1)
+    
+    ' Set initial position and spacing
+    imgTop = 10
+    imgLeft = 10
+    columnOffset = 220 ' Width of one column
+    rowSpacing = 20 ' Adjust this value to set row spacing
+    maxColumns = 3 ' Number of columns
+    maxRows = 100 ' Maximum number of rows
+    
+    ' Get all files in the folder
+    imgCounter = 0
+    imgName = Dir(imagePath & "*.*")
+    Do While imgName <> ""
+        If Right(imgName, 3) = "jpg" Or Right(imgName, 3) = "png" Then
+            imgCounter = imgCounter + 1
+            ReDim Preserve files(1 To imgCounter)
+            files(imgCounter) = imgName
+        End If
+        imgName = Dir ' Get next file
+    Loop
+    
+    ' Display the count of files found in the folder
+  '  MsgBox "Number of files found: " & imgCounter
+    
+    ' Loop through each file and insert images into worksheet
+    For i = 1 To imgCounter
+        ' Insert the image as a shape
+        Set imgShape = newWorksheet.Shapes.AddPicture(fileName:=imagePath & files(i), _
+                                                      LinkToFile:=msoFalse, _
+                                                      SaveWithDocument:=msoTrue, _
+                                                      Left:=imgLeft, Top:=imgTop, Width:=-1, Height:=-1)
+        
+        ' Get image dimensions
+        imgWidth = imgShape.Width
+        imgHeight = imgShape.Height
+        
+        ' Move to the next column
+        imgLeft = imgLeft + imgWidth + columnOffset
+        
+        ' If maximum number of columns reached, move to the next row
+        If (i Mod maxColumns) = 0 Then
+            ' Reset left position
+            imgLeft = 10
+            ' Move to the next row
+            imgTop = imgTop + imgHeight + rowSpacing
+        End If
+    Next i
+    
+    ' Save the new workbook with the desired file name
+    newWorkbook.SaveAs fileName:=excelPath & "FINALoutputWithAllGRAPHs.xlsx"
+    ' Close the new workbook
+    newWorkbook.Close
+    
+    MsgBox "Images loaded and arranged. New Excel file saved as FINALoutputWithAllGRAPHs.xlsx"
+End Sub
+
+
+'----------------------------------------------
+'----------------------------------------------
+'----------------------------------------------
+'----------------------------------------------
