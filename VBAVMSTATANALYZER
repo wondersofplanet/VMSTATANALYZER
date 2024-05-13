@@ -124,7 +124,7 @@ Sub RunSub2()
     
     
     ' Pause for 1 seconds (specified in seconds)
-    Application.Wait (Now + TimeValue("0:00:01"))
+    Application.Wait (Now + TimeValue("0:00:02"))
     ' Proceed with ExportToJPEG and DeleteZeroSizedJPGs
     
     ExportToJPEG
@@ -211,6 +211,7 @@ Function LoopThroughPathsAndRunAnalyzer() As Boolean
     
     ' Loop through each row and process the data
     For i = 2 To lastRow
+	Application.Wait (Now + TimeValue("0:00:02"))
         ' Extract LogFilePath from column N
         LogFilePath = ws.Cells(i, "N").value
         
@@ -284,7 +285,13 @@ Sub VMSTAT_Analyzer(SavePath As String, LogFilePath As String, TotalMemory As Lo
    ' Window_EndRow = Worksheets("Analyzer").Range("$C$14").value
    ' PT_Run_StartRow = Worksheets("Analyzer").Range("$B$16").value
    ' PT_Run_EndRow = Worksheets("Analyzer").Range("$C$16").value
-    
+   
+   
+    ' Check if the file "FINALoutputWithAllGRAPHs.xlsx" already exists and delete it if it does
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    If fso.FileExists(excelPath & "FINALoutputWithAllGRAPHs.xlsx") Then
+        fso.DeleteFile (excelPath & "FINALoutputWithAllGRAPHs.xlsx")
+    End If
     
     
 Dim CurrentSheet As Worksheet
@@ -1520,3 +1527,4 @@ End Sub
 '----------------------------------------------
 '----------------------------------------------
 '----------------------------------------------
+
