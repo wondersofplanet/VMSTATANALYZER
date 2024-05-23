@@ -211,7 +211,7 @@ Function LoopThroughPathsAndRunAnalyzer() As Boolean
     
     ' Loop through each row and process the data
     For i = 2 To lastRow
-	Application.Wait (Now + TimeValue("0:00:02"))
+    Application.Wait (Now + TimeValue("0:00:02"))
         ' Extract LogFilePath from column N
         LogFilePath = ws.Cells(i, "N").value
         
@@ -1171,64 +1171,72 @@ Sub LoadLogFiles()
     Dim ws As Worksheet
     Dim rowNum As Integer
     Dim rowCount As Integer
-    
+    Dim initialPath As String
+
+    ' Get the current workbook path
+    initialPath = ThisWorkbook.Path
+
     ' Prompt user to select a folder containing .log files
     With Application.FileDialog(msoFileDialogFolderPicker)
         .Title = "Select Folder Containing .log Files"
         .AllowMultiSelect = False
+        .InitialFileName = initialPath & "\" ' Set initial location to current workbook path without auto-filling the folder name
         If .Show <> -1 Then Exit Sub ' User canceled
         folderPath = .SelectedItems(1)
     End With
     
-   
+    ' Ensure that the selected folder is the same as the workbook's path
+    If folderPath <> initialPath Then
+        MsgBox "Please Ensure that this 'MultiVMStatAnalyzer' Excel file is kept in the same folder as the .log files and you are running from that folder. Otherwise, this MultiVMStatAnalyzer script will not work correctly.", vbExclamation
+        Exit Sub
+    End If
+
     ' Set reference to current worksheet
     Set ws = ThisWorkbook.ActiveSheet
-    
+
     ' Clear existing data in columns M, N, and O
     ws.Range("M:N").ClearContents
     ws.Range("O:O").ClearContents
     ws.Range("L:L").ClearContents
+
     ' Write headers
-   ' Set default values for L1, M1, N1, and O1
     ws.Range("L1").value = "Enter the server IP here"
     ws.Range("M1").value = "VMSTAT-LOGNAME"
     ws.Range("N1").value = "VMSTAT-LOGPATH"
     ws.Range("O1").value = "TOTAL MEMORY OF SERVER"
+
     ' Find the next available row in the current worksheet
     rowNum = 2 ' Start from row 2 since row 1 contains headers
-    
+
     ' Get list of .log files in selected folder
     Set logFilesFolder = CreateObject("Scripting.FileSystemObject").GetFolder(folderPath)
-  For Each logFile In logFilesFolder.files
-    If LCase(Right(logFile.Name, 4)) = ".log" Then
-        logFileName = logFile.Name
-        fullLogFilePath = logFile.Path
-        
-        ' Check if file is a vmstat log file
-        If IsVmstatLogFile(fullLogFilePath) Then
-            ws.Cells(rowNum, "M").value = logFileName
-            ws.Cells(rowNum, "N").value = fullLogFilePath
-            ' Increment row number for next entry
-            rowNum = rowNum + 1
-        Else
-            MsgBox logFileName & " is not a vmstat log file.", vbExclamation
-             ' Clear data in columns M and N (except the headers)
-         ws.Range("M2:N" & ws.Cells(ws.Rows.Count, "N").End(xlUp).Row).ClearContents
-            Exit Sub ' Stop loading log files
+    For Each logFile In logFilesFolder.files
+        If LCase(Right(logFile.Name, 4)) = ".log" Then
+            logFileName = logFile.Name
+            fullLogFilePath = logFile.Path
+
+            ' Check if file is a vmstat log file
+            If IsVmstatLogFile(fullLogFilePath) Then
+                ws.Cells(rowNum, "M").value = logFileName
+                ws.Cells(rowNum, "N").value = fullLogFilePath
+                ' Increment row number for next entry
+                rowNum = rowNum + 1
+            Else
+                MsgBox logFileName & " is not a vmstat log file.", vbExclamation
+                ' Clear data in columns M and N (except the headers)
+                ws.Range("M2:N" & ws.Cells(ws.Rows.Count, "N").End(xlUp).Row).ClearContents
+                Exit Sub ' Stop loading log files
+            End If
         End If
-    End If
-Next logFile
-    
+    Next logFile
+
     ' Count non-empty cells in column N (excluding header)
     rowCount = Application.WorksheetFunction.CountA(ws.Range("N:N")) - 1
-    
-    ' Set default value for ServerTotalMemorySize in column O based on the count in column N
-   ' If rowCount > 0 Then
-    '    ws.Range("O2:O" & rowCount + 1).value = "12345"
-   ' End If
-    Columns("M:O").AutoFit
-    MsgBox "Log files loaded successfully." & vbCrLf & "Next, manually enter ""IP address"" and ""Total Memory"" for each server in L And O Column.", vbInformation
 
+    ' AutoFit columns M to O
+    Columns("M:O").AutoFit
+
+    MsgBox "Log files loaded successfully." & vbCrLf & "Next, manually enter ""IP address"" and ""Total Memory"" for each server in columns L and O.", vbInformation
 End Sub
 
 Function IsVmstatLogFile(FilePath As String) As Boolean
@@ -1527,4 +1535,5 @@ End Sub
 '----------------------------------------------
 '----------------------------------------------
 '----------------------------------------------
+
 
