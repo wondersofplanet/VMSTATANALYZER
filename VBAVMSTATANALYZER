@@ -5,10 +5,10 @@
 'in Excel. It provides instructions, sets default values, hides unnecessary columns,
 'and adds buttons to 'execute specific procedures for loading logs, configuring, and analyzing data.
 
-Sub FormatCellsAndAddButtons()
+Sub aaaaaaaaaaFormatCellsAndAddButtons()
     Dim ws As Worksheet
     Set ws = ActiveSheet ' Assuming you want to use the current active sheet
-    
+    ClearSheet
     ' Merge cells B3 to D5 and set the title
     With ws.Range("B3:D5")
         .Merge
@@ -24,7 +24,10 @@ Sub FormatCellsAndAddButtons()
         .Merge
         .value = "Important: " & vbCrLf & _
                  "1) Make sure you keep all the required logs in a single folder." & vbCrLf & _
-                 "2) Make sure you keep this analyzer Excel in that same folder and run it, otherwise, it won't work."
+                 "2) Make sure you keep this analyzer Excel in that same folder and run it, otherwise, it won't work." & vbCrLf & _
+                 "-----------" & vbCrLf & _
+                 "To find Total memory of server use this command:" & vbCrLf & _
+                 "echo Hello, the memory size of $(hostname -I) in MB is $(awk '/MemTotal/ {print $2}' /proc/meminfo)"
         .HorizontalAlignment = xlCenter ' Center align the text
         .VerticalAlignment = xlTop ' Align the text to the top
         .WrapText = True ' Enable text wrapping
@@ -91,7 +94,73 @@ Sub FormatCellsAndAddButtons()
         .OnAction = "RunSub2" ' Assign the macro to execute when the button is clicked
         .Caption = "Step3) Start Analysis" ' Text displayed on the button
     End With
+    AddButtonToP19CELL
 End Sub
+Sub AddButtonToP19CELL()
+    Dim ws As Worksheet
+    Dim btn As Button
+    Dim cellWidth As Double
+    Dim cellHeight As Double
+
+    ' Set the active sheet
+    Set ws = ActiveSheet
+
+    ' Get the width and height of cell P19
+    cellWidth = ws.Range("P19").Width
+    cellHeight = ws.Range("P19").Height
+
+    ' Add a button
+    Set btn = ws.Buttons.Add(ws.Range("P19").Left, ws.Range("P19").Top, 1, 1)
+
+    ' Set button properties
+    With btn
+        .OnAction = "ButtonATP19ClickMacro" ' Name of the macro to run when the button is clicked
+        .Caption = "Tool(use if needed): Add valid first Line to all invalid .log files in current folder"
+        .Name = "btnP19"
+    End With
+
+    ' Adjust button size
+    With ws.Shapes(btn.Name)
+        .LockAspectRatio = msoFalse
+        .Width = cellWidth * 9
+        .Height = cellHeight * 2
+    End With
+End Sub
+
+Sub ButtonATP19ClickMacro()
+    ' Add the code for what you want to happen when the button is clicked
+    addFirstlinetoLogFilestoMakeItV
+    MsgBox "Added Valid first line to all the .log files in current folder!"
+End Sub
+Sub ClearSheet()
+    'Clear all data
+    ActiveSheet.Cells.ClearContents
+    
+    'Clear all formatting and highlights
+    Cells.FormatConditions.Delete
+    Cells.Font.ColorIndex = xlAutomatic
+    Cells.Interior.ColorIndex = xlNone
+    Cells.Borders.LineStyle = xlNone
+    Cells.Font.Bold = False
+    Cells.Font.Italic = False
+    Cells.Font.Underline = xlUnderlineStyleNone
+    Cells.HorizontalAlignment = xlGeneral
+    Cells.VerticalAlignment = xlBottom
+    Cells.WrapText = False
+    Cells.NumberFormat = "General"
+    
+    'Clear all buttons and shapes
+    Dim shp As Shape
+    For Each shp In ActiveSheet.Shapes
+        shp.Delete
+    Next shp
+    
+    'Autofit all columns and rows
+    Cells.Columns.AutoFit
+    Cells.Rows.AutoFit
+End Sub
+
+
 
 Function CalculateButtonWidth(text As String) As Double
     ' Function to calculate the width required for the button based on the text length
@@ -1239,7 +1308,7 @@ Sub LoadLogFiles()
     MsgBox "Log files loaded successfully." & vbCrLf & "Next, manually enter ""IP address"" and ""Total Memory"" for each server in columns L and O.", vbInformation
 End Sub
 
-Function IsVmstatLogFile(FilePath As String) As Boolean
+Function IsVmstatLogFile(filePath As String) As Boolean
     Dim fileContent As String
     Dim lines As Variant
     Dim line As Variant
@@ -1247,7 +1316,7 @@ Function IsVmstatLogFile(FilePath As String) As Boolean
     On Error Resume Next ' Ignore errors if file cannot be opened
     
     ' Read contents of the file
-    Open FilePath For Input As #1
+    Open filePath For Input As #1
     fileContent = Input$(LOF(1), 1)
     Close #1
     
@@ -1285,7 +1354,7 @@ Sub ExportToJPEG()
     Dim fileName As String
     Dim ExcelFilePath As String
     Dim Plage As Range
-    Dim FilePath As String
+    Dim filePath As String
     Dim FullFilePath As String
     Dim StartCell As Range
     Dim chartSheet As Chart
@@ -1536,4 +1605,66 @@ End Sub
 '----------------------------------------------
 '----------------------------------------------
 
-
+Sub addFirstlinetoLogFilestoMakeItV()
+    Dim folderPath As String
+    Dim fileName As String
+    Dim filePath As String
+    Dim fileContent As String
+    Dim header As String
+    Dim firstLine As String
+    Dim fileNumber As Integer
+    Dim lines() As String
+    
+    ' Define the header
+    header = "procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----"
+    
+    ' Get the folder path where the Excel file is located
+    folderPath = ThisWorkbook.Path
+    
+    ' Get the first .log file in the folder
+    fileName = Dir(folderPath & "\*.log")
+    
+    ' Loop through all .log files in the folder
+    Do While fileName <> ""
+        filePath = folderPath & "\" & fileName
+        
+        ' Open the file for reading
+        fileNumber = FreeFile
+        Open filePath For Input As #fileNumber
+        
+        ' Read the entire file content
+        fileContent = Input$(LOF(fileNumber), #fileNumber)
+        
+        ' Close the file
+        Close #fileNumber
+        
+        ' Split the content into lines
+        lines = Split(fileContent, vbCrLf)
+        
+        ' Get the first line
+        If UBound(lines) >= 0 Then
+            firstLine = lines(0)
+        Else
+            firstLine = ""
+        End If
+        
+        ' Check if the first line matches the header
+        If Trim(firstLine) <> header Then
+            ' Open the file for writing
+            fileNumber = FreeFile
+            Open filePath For Output As #fileNumber
+            
+            ' Write the header
+            Print #fileNumber, header
+            
+            ' Write the original content
+            Print #fileNumber, fileContent
+            
+            ' Close the file
+            Close #fileNumber
+        End If
+        
+        ' Get the next .log file
+        fileName = Dir
+    Loop
+End Sub
