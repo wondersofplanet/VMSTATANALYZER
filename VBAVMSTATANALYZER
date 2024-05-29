@@ -5,7 +5,7 @@
 'in Excel. It provides instructions, sets default values, hides unnecessary columns,
 'and adds buttons to 'execute specific procedures for loading logs, configuring, and analyzing data.
 
-Sub aaaaaaaaaaFormatCellsAndAddButtons()
+Sub aaaaaaaaaaaaSetupAndFormatCellsAndAddButtons()
     Dim ws As Worksheet
     Set ws = ActiveSheet ' Assuming you want to use the current active sheet
     ClearSheet
@@ -96,6 +96,8 @@ Sub aaaaaaaaaaFormatCellsAndAddButtons()
     End With
     AddButtonToP19CELL
 End Sub
+
+
 Sub AddButtonToP19CELL()
     Dim ws As Worksheet
     Dim btn As Button
@@ -204,6 +206,8 @@ Sub RunSub2()
     
     LoadAndArrangeImagesAndCreateExcel
     
+    aCreateNewMinMaxExcelWorkbookAndRunMacro
+    
     MsgBox "Analysis completed successfully."
 End Sub
 
@@ -221,7 +225,7 @@ End Sub
 
 
 Function LoopThroughPathsAndRunAnalyzer() As Boolean
-    Dim SavePath As String
+    Dim savePath As String
     Dim LogFilePath As String
     Dim TotalMemory As Long
     Dim SaveName As String
@@ -291,16 +295,16 @@ Function LoopThroughPathsAndRunAnalyzer() As Boolean
         ServerName = ws.Cells(i, "L").value
         
         ' Extract the directory part from the LogFilePath
-        SavePath = fso.GetParentFolderName(LogFilePath)
+        savePath = fso.GetParentFolderName(LogFilePath)
         
         ' Perform string subtraction to get the desired SaveName
         Dim fileName As String
         Dim index As Long
-        index = InStr(SavePath, LogFilePath)
+        index = InStr(savePath, LogFilePath)
         If index > 0 Then
-            fileName = Mid(SavePath, index + Len(LogFilePath))
+            fileName = Mid(savePath, index + Len(LogFilePath))
         Else
-            fileName = SavePath ' If LogFilePath is not found in SavePath, just use SavePath
+            fileName = savePath ' If LogFilePath is not found in SavePath, just use SavePath
         End If
         
         ' Construct SaveName without the ".log" extension
@@ -315,7 +319,7 @@ Function LoopThroughPathsAndRunAnalyzer() As Boolean
         
         ' Call Run_VMSTAT_Analyzer with extracted data
         ' Include ServerName parameter
-        VMSTAT_Analyzer SavePath, LogFilePath, TotalMemory, SaveName, ServerName
+        VMSTAT_Analyzer savePath, LogFilePath, TotalMemory, SaveName, ServerName
     Next i
     
     LoopThroughPathsAndRunAnalyzer = True ' Return True if successful
@@ -342,7 +346,7 @@ End Function
 
 
 
-Sub VMSTAT_Analyzer(SavePath As String, LogFilePath As String, TotalMemory As Long, SaveName As String, ServerName As String)
+Sub VMSTAT_Analyzer(savePath As String, LogFilePath As String, TotalMemory As Long, SaveName As String, ServerName As String)
     On Error GoTo ErrHandler
     Application.ScreenUpdating = False
     
@@ -420,7 +424,7 @@ With wkbNew.Worksheets(1)
     ' Find Server Type like LINUX or AIX or SunOS
     Dim a As Long
     Dim ServerType As String
-    For a = 1 To .UsedRange.Rows.Count
+    For a = 1 To .usedRange.Rows.Count
         If .Range("$B$" & a).value = "r" Then
             If .Range("$D$" & a).value = "swpd" Then
                 ServerType = "LINUX"
@@ -435,7 +439,7 @@ With wkbNew.Worksheets(1)
 
     ' Remove Unwanted Rows where Cell Value is not an Integer
     Dim b As Long
-    For b = 1 To .UsedRange.Rows.Count
+    For b = 1 To .usedRange.Rows.Count
         .Range("$A$" & b).Select
         If .Range("$A$" & b).value > 0 Then
             Selection.Insert Shift:=xlToRight
@@ -554,7 +558,7 @@ End If
 
 ' Calculate Number of Used Rows after Removing Unwanted Rows
 Dim rowCount As Long
-rowCount = .UsedRange.Rows.Count
+rowCount = .usedRange.Rows.Count
 
 ' Set X-axis Start Value and Format Column
 .Range("$A$2:$A$" & rowCount).NumberFormat = "hh:mm:ss"
@@ -1190,7 +1194,7 @@ Application.DisplayAlerts = False
 
 ' Save the workbook
 Dim OutputFilePath As String
-OutputFilePath = SavePath & "\" & SaveName & ".xlsx"
+OutputFilePath = savePath & "\" & SaveName & ".xlsx"
 
 ' Save the workbook with the specified file name and format
 wkbNew.SaveAs fileName:=OutputFilePath, FileFormat:=xlOpenXMLWorkbook
@@ -1387,7 +1391,7 @@ Sub ExportToJPEG()
                 For Each Sheet In wb.Sheets
                     If TypeName(Sheet) = "Worksheet" Then
                         ' Set the range to be captured using UsedRange
-                        Set Plage = Sheet.UsedRange
+                        Set Plage = Sheet.usedRange
                         ' Check if there's data on the sheet
                         If Not Plage Is Nothing Then
                             ' Copy the range as a picture
@@ -1694,7 +1698,7 @@ Sub LoadAndArrangesSmallImagesAndCreateExcel()
     newWorkbook.Close
     
      'MsgBox "Images loaded and arranged. New Excel file saved as FINALoutputWithAllGRAPHs.xlsx"
-    MsgBox "final output graphs and data and Images loaded and arranged and saved as FINALoutputWithAllGRAPHs.xlsx and FINALoutputWithAllGRAPHsWithALLsmallPics.xlsx"
+    MsgBox "final output graphs and data and Images loaded and arranged and saved as FINALoutputWithAllGRAPHs.xlsx and FINALoutputWithAllGRAPHsWithALLsmallPics.xlsx -- Click On Ok to proceed to extract the minMax Data"
 End Sub
 
 
@@ -1831,4 +1835,585 @@ Sub aaaaaaArrangeImagesInThreeColumns()
         End If
     Next img
 End Sub
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+'----------------------------------------------
+'----------------------------------------------
+'----------------------------------------------
+'----------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Sub aCreateNewMinMaxExcelWorkbookAndRunMacro()
+    Dim newWorkbook As Workbook
+    Dim newModule As Object
+    Dim vbCode As String
+    Dim savePath As String
+    Dim i As Long
+    
+    ' Get the path of the current workbook and set the new workbook name to "MinMax.xlsm"
+    savePath = ThisWorkbook.Path & "\MinMax.xlsm"
+    
+    ' Check if the file already exists, and delete it if it does
+    If Dir(savePath) <> "" Then
+        Kill savePath
+    End If
+    
+    ' Create a new workbook
+    Set newWorkbook = Workbooks.Add
+    
+    ' Add a new module to the new workbook
+    Set newModule = newWorkbook.VBProject.VBComponents.Add(1) ' 1 represents a standard module
+    
+    ' Loop through each line of code in the existing macro and concatenate them into a single string
+    For i = 1 To ThisWorkbook.VBProject.VBComponents("Module1").CodeModule.CountOfLines
+        vbCode = vbCode & ThisWorkbook.VBProject.VBComponents("Module1").CodeModule.lines(i, 1) & vbCrLf
+    Next i
+    
+    ' Add the VBA code to the new module
+    With newModule.CodeModule
+        .InsertLines 1, vbCode
+    End With
+    
+    ' Save the new workbook in the same directory as the current workbook with the name "MinMax.xlsm"
+    newWorkbook.SaveAs fileName:=savePath, FileFormat:=xlOpenXMLWorkbookMacroEnabled
+    
+    ' Run the newly added macro
+    Application.Run newWorkbook.Name & "!aaaCombinedGenerateResourceUtilization"
+    
+    ' Save and close the new workbook
+    newWorkbook.Close SaveChanges:=True
+    
+    ' Clean up
+    Set newModule = Nothing
+    Set newWorkbook = Nothing
+End Sub
+
+
+Sub aaaCombinedGenerateResourceUtilization()
+
+   CopyDataFromOtherExcels
+
+
+
+   CopyDataToSheet2
+
+  
+
+   CopyPastePatternDataInSAMEsheet2
+
+   CopyDataAcolumnToSheet3
+
+
+
+   CopyDataTOBCDcolumn
+
+
+
+   RemoveEXTRATextAndFormatting
+
+
+   InsertRowsAtBeginningInSheet3
+
+  
+
+   AddTemplateHeadersInSheet3
+
+   
+
+   AddBordersToCellinDATArangeSheet3
+   
+   AutoSaveAndClose
+
+End Sub
+
+Sub CopyDataFromOtherExcels()
+Application.Wait Now + TimeValue("00:00:01")
+    Dim currentWB As Workbook
+    Dim currentWS As Worksheet
+    Dim currentPath As String
+    Dim currentFile As String
+    Dim dataRange As Range
+    Dim targetCell As Range
+    Dim cell As Range
+    Dim rowCount As Long
+    Dim colCount As Long
+    Dim sourceRowOffset As Long
+    Dim sourceColOffset As Long
+    Dim targetRowOffset As Long
+    Dim targetColOffset As Long
+    Dim lastRow As Long
+    Dim lastColumn As Long
+    Dim nextAvailableRow As Long
+    Dim copyWithFormat As Boolean
+    
+    On Error GoTo ErrorHandler
+    
+    ' Set flag to determine whether to copy with formatting
+    copyWithFormat = True ' Change to False to disable copying with formatting
+    
+    ' Set current workbook and worksheet
+    Set currentWB = ThisWorkbook
+    Set currentWS = Worksheets("Sheet1")
+    currentWS.Cells.Clear
+    ' Set current directory path
+    currentPath = ThisWorkbook.Path
+    
+    ' Find next available row and column in current worksheet
+    lastRow = currentWS.Cells(currentWS.Rows.Count, "A").End(xlUp).Row
+    lastColumn = currentWS.Cells(1, currentWS.Columns.Count).End(xlToLeft).Column
+    
+    ' Calculate the next available row
+    If lastRow = 1 And lastColumn = 1 And IsEmpty(currentWS.Cells(1, 1)) Then
+        nextAvailableRow = 1
+    Else
+        nextAvailableRow = lastRow + 1
+    End If
+    
+    ' Set target cell
+    Set targetCell = currentWS.Cells(nextAvailableRow, "A")
+    
+    ' Loop through Excel files in current directory
+    currentFile = Dir(currentPath & "\*.xls*")
+    Do While currentFile <> ""
+        ' Skip the current workbook and only process files starting with "Output"
+        If currentFile <> currentWB.Name And Left(currentFile, 6) = "Output" Then
+            ' Open the workbook
+            Workbooks.Open fileName:=currentPath & "\" & currentFile
+            ' Set data range from the specified cells
+            Set dataRange = Workbooks(currentFile).ActiveSheet.Range("A1,A4,A5,C2,C3,D3,C4,D4,D5,C5,C6")
+            
+            ' Check if data range is empty
+            If Not dataRange Is Nothing Then
+                ' Get the size of the data range
+                rowCount = dataRange.Rows.Count
+                colCount = dataRange.Columns.Count
+                
+                ' Calculate row and column offsets for the target range
+                sourceRowOffset = dataRange.Cells(1).Row - 1
+                sourceColOffset = dataRange.Cells(1).Column - 1
+                targetRowOffset = targetCell.Row - 1
+                targetColOffset = targetCell.Column - 1
+                
+                ' Copy data to target range
+                For Each cell In dataRange
+                    currentWS.Cells(cell.Row + targetRowOffset - sourceRowOffset, cell.Column + targetColOffset - sourceColOffset).value = cell.value
+                    If copyWithFormat Then
+                        ' Copy formatting
+                        cell.Copy
+                        currentWS.Cells(cell.Row + targetRowOffset - sourceRowOffset, cell.Column + targetColOffset - sourceColOffset).PasteSpecial Paste:=xlPasteFormats
+                        ' Copy color
+                        currentWS.Cells(cell.Row + targetRowOffset - sourceRowOffset, cell.Column + targetColOffset - sourceColOffset).Interior.Color = cell.Interior.Color
+                    End If
+                Next cell
+                
+                ' Move target cell to the next available position
+                Set targetCell = currentWS.Cells(nextAvailableRow + rowCount, "A")
+            End If
+            
+            ' Close the opened workbook without saving changes
+            Workbooks(currentFile).Close SaveChanges:=False
+            
+            ' Calculate the next available row for the next iteration
+            nextAvailableRow = currentWS.Cells(currentWS.Rows.Count, "A").End(xlUp).Row + 2 ' Add an extra row for an empty line
+            ' Set target cell for the next iteration
+            Set targetCell = currentWS.Cells(nextAvailableRow, "A")
+        End If
+        ' Move to the next file
+        currentFile = Dir
+    Loop
+    
+    ' Autofit columns
+    currentWS.Columns.AutoFit
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "An error occurred: " & Err.Description, vbExclamation
+End Sub
+
+
+
+
+
+Sub CopyDataToSheet2()
+Application.Wait Now + TimeValue("00:00:01")
+    Dim ws1 As Worksheet
+    Dim ws2 As Worksheet
+    Dim lastRow As Long
+    
+    'Check if Sheet2 exists, if not create it
+    On Error Resume Next
+    Set ws2 = Worksheets("Sheet2")
+    ws2.Cells.Clear
+    On Error GoTo 0
+    
+    If ws2 Is Nothing Then
+        'Sheet2 does not exist, create it
+        Set ws2 = Worksheets.Add
+        ws2.Name = "Sheet2"
+    End If
+    
+    'Set reference to Sheet1
+    Set ws1 = ThisWorkbook.Worksheets("Sheet1")
+    
+    'Find the last row with data in Sheet1
+    lastRow = ws1.Cells(ws1.Rows.Count, "A").End(xlUp).Row
+    
+    'Copy data from Sheet1 to Sheet2
+    ws1.Range("A1:Z" & lastRow).Copy Destination:=ws2.Range("A1")
+    'Autofit all rows in Sheet2
+    ws2.Columns.AutoFit
+    'Inform the user
+    'MsgBox "Data copied from Sheet1 to Sheet2 successfully!", vbInformation
+End Sub
+
+Sub CopyPastePatternDataInSAMEsheet2()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim i As Long
+    
+    ' Set the worksheet
+    Set ws = ThisWorkbook.Sheets("Sheet2")
+    
+    ' Find the last row with data
+    lastRow = ws.Cells(ws.Rows.Count, "C").End(xlUp).Row
+    
+    ' Loop through the rows and copy paste data
+    For i = 5 To lastRow Step 6
+        ' Copy data from C5 and D5 to E4 and F4
+        ws.Range("C" & i & ":D" & i).Copy
+        ws.Range("E" & i - 1 & ":F" & i - 1).PasteSpecial Paste:=xlPasteValues
+        
+        ' Copy data from C11 and D11 to F10 and D10
+        ' ws.Range("C" & i + 6 & ":D" & i + 6).Copy
+        ' ws.Range("F" & i + 5 & ":D" & i + 5).PasteSpecial Paste:=xlPasteValues
+        
+        ' Clear the clipboard
+        Application.CutCopyMode = False
+    Next i
+End Sub
+
+
+Sub CopyDataAcolumnToSheet3()
+    Dim ws2 As Worksheet
+    Dim ws3 As Worksheet
+    Dim lastRow As Long
+    Dim i As Long, j As Long
+  
+    
+    ' Check if Sheet3 exists, if not, create it
+    On Error Resume Next
+    Set ws3 = Worksheets("Sheet3")
+    On Error GoTo 0
+    
+    If ws3 Is Nothing Then
+        Set ws3 = ThisWorkbook.Sheets.Add(After:= _
+                 ThisWorkbook.Sheets(ThisWorkbook.Sheets.Count))
+        ws3.Name = "Sheet3"
+    End If
+      ws3.Cells.Clear
+    ' Copy data from Sheet2 to Sheet3
+    Set ws2 = ThisWorkbook.Sheets("Sheet2")
+    lastRow = ws2.Cells(ws2.Rows.Count, "A").End(xlUp).Row
+    
+    j = 1 ' Counter for rows in Sheet3
+    For i = 1 To lastRow Step 6 ' Start from row 1, copy every 6th row
+        ws2.Cells(i, 1).Copy ws3.Cells(j, 1)
+        j = j + 1
+    Next i
+    
+   ' MsgBox "Data copied successfully from Sheet2 to Sheet3.", vbInformation
+End Sub
+
+
+Sub CopyDataTOBCDcolumn()
+Application.Wait Now + TimeValue("00:00:01")
+    Dim sourceSheet As Worksheet
+    Dim destSheet As Worksheet
+    Dim i As Integer
+    Dim sourceRow As Integer
+    Dim destRow As Integer
+    
+    ' Set the source and destination sheets
+    Set sourceSheet = ThisWorkbook.Sheets("Sheet2")
+    Set destSheet = ThisWorkbook.Sheets("Sheet3")
+    
+    ' Initialize the destination row
+    destRow = 1
+    
+    ' Loop through the rows in Sheet2 and copy data to Sheet3
+    For i = 4 To sourceSheet.Cells(Rows.Count, "C").End(xlUp).Row Step 6
+        ' Determine the source row
+        sourceRow = i
+        
+        ' Copy data from Sheet2 to Sheet3
+        destSheet.Cells(destRow, 2).Resize(1, 4).value = sourceSheet.Cells(sourceRow, 3).Resize(1, 4).value
+        
+        ' Increment the destination row
+        destRow = destRow + 1
+    Next i
+    'Autofit all rows in Sheet2
+    destSheet.Columns.AutoFit
+    ' Notify user that data has been copied
+    'MsgBox "Data copied successfully!", vbInformation
+End Sub
+
+Sub RemoveEXTRATextAndFormatting()
+    Dim lastRow As Long
+    Dim cell As Range
+    
+    ' Find the last row with data in column A of Sheet3
+    lastRow = Sheets("Sheet3").Cells(Rows.Count, "A").End(xlUp).Row
+    
+    ' Loop through each cell in column A and remove text and formatting
+    For Each cell In Sheets("Sheet3").Range("A1:A" & lastRow)
+        cell.value = Replace(cell.value, "Server - Resource Utilization", "")
+        cell.ClearFormats ' Remove formatting
+    Next cell
+End Sub
+Sub AddTemplateHeadersInSheet3()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets("Sheet3") ' Adjust if you want to target a specific sheet
+    
+    ' Set headers
+    ws.Range("A1:E1").Merge
+    ws.Range("A1").value = "Resource Utilization"
+    ws.Range("A1").Font.Bold = True
+    ws.Range("A1").Font.Size = 14
+    ws.Range("A1").Interior.Color = RGB(184, 204, 228) ' Light blue background
+
+    ws.Range("A2").value = "Servers"
+    ws.Range("B2:C2").Merge
+    ws.Range("B2").value = "Resource Utilization"
+    ws.Range("D2:E2").Merge
+    ws.Range("D2").value = "Memory Utilization"
+     ' Select cell A1
+  With ws.Range("A1")
+    .HorizontalAlignment = xlCenter
+    .VerticalAlignment = xlCenter
+End With
+
+    ws.Range("B3").value = "Avg %"
+    ws.Range("C3").value = "Max %"
+    ws.Range("D3").value = "Avg %"
+    ws.Range("E3").value = "Max %"
+
+    ' Format the cells
+    With ws.Range("A2:E2")
+        .Interior.Color = RGB(198, 239, 206) ' Light green background
+        .Font.Bold = True
+    End With
+    
+    With ws.Range("A3:E3")
+        .Font.Bold = True
+        .Interior.Color = RGB(198, 239, 206) ' Light green background
+        .Borders(xlEdgeBottom).LineStyle = xlContinuous
+        .Borders(xlEdgeBottom).Weight = xlThin
+    End With
+
+    ' Set column widths
+    ws.Columns("A").ColumnWidth = 15
+    ws.Columns("B").ColumnWidth = 10
+    ws.Columns("C").ColumnWidth = 10
+    ws.Columns("D").ColumnWidth = 10
+    ws.Columns("E").ColumnWidth = 10
+
+' Clear any existing content in A2 and A3 on Sheet6
+    ws.Range("A2:A3").ClearContents
+    
+    ' Merge cells A2 and A3 on Sheet6
+    ws.Range("A2:A3").Merge
+    
+    ' Set the value of the merged cell to "SERVERS" on Sheet6
+    ws.Range("A2").value = "SERVERS"
+    
+    ' Center the text horizontally and vertically in the merged cell on Sheet6
+    With ws.Range("A2")
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlCenter
+    End With
+    
+    ' Add border to the merged cell on Sheet6
+    With ws.Range("A2:A3").Borders
+        .LineStyle = xlContinuous
+        .Weight = xlThin
+    End With
+    
+'MsgBox "Processing done, ""Final Output in Sheet3""!", vbInformation
+    
+    ' Set values to the specified cells on Sheet6 (optional)
+    'ws.Range("B2").Value = "ValueB2"
+   'ws.Range("D2").Value = "ValueD2"
+  '  ws.Range("B3").Value = "ValueB3"
+  '  ws.Range("D3").Value = "ValueD3"
+   ' ws.Range("E3").Value = "ValueE3"
+    
+    ' Add borders to the specified cells on Sheet6
+      ' '  With ws.Range("B2, D2").Borders
+      ' .LineStyle = xlContinuous
+      '.Weight = xlThin
+  ' End With
+'
+End Sub
+
+Sub InsertRowsAtBeginningInSheet3()
+    Dim ws As Worksheet
+    ' Set the worksheet to Sheet3
+    Set ws = ThisWorkbook.Sheets("Sheet3")
+    
+    ' Insert three rows at the beginning
+    ws.Rows("1:3").Insert Shift:=xlDown, CopyOrigin:=xlFormatFromLeftOrAbove
+End Sub
+
+Sub AddBordersToCellinDATArangeSheet3()
+Application.Wait Now + TimeValue("00:00:01")
+    Dim ws As Worksheet
+    Dim dataRange As Range
+    Dim cell As Range
+    
+    ' Set the worksheet
+    Set ws = ThisWorkbook.Sheets("Sheet3")
+    
+    ' Define the data range
+    ' You can modify this range according to your specific needs
+    Set dataRange = ws.usedRange
+    
+    ' Loop through each cell in the data range and add borders
+    For Each cell In dataRange
+        With cell.Borders(xlEdgeLeft)
+            .LineStyle = xlContinuous
+            .ColorIndex = 0
+            .TintAndShade = 0
+            .Weight = xlThin
+        End With
+        With cell.Borders(xlEdgeTop)
+            .LineStyle = xlContinuous
+            .ColorIndex = 0
+            .TintAndShade = 0
+            .Weight = xlThin
+        End With
+        With cell.Borders(xlEdgeBottom)
+            .LineStyle = xlContinuous
+            .ColorIndex = 0
+            .TintAndShade = 0
+            .Weight = xlThin
+        End With
+        With cell.Borders(xlEdgeRight)
+            .LineStyle = xlContinuous
+            .ColorIndex = 0
+            .TintAndShade = 0
+            .Weight = xlThin
+        End With
+        With cell.Borders(xlInsideVertical)
+            .LineStyle = xlContinuous
+            .ColorIndex = 0
+            .TintAndShade = 0
+            .Weight = xlThin
+        End With
+        With cell.Borders(xlInsideHorizontal)
+            .LineStyle = xlContinuous
+            .ColorIndex = 0
+            .TintAndShade = 0
+            .Weight = xlThin
+        End With
+    Next cell
+    MsgBox "Processing done, ""min max extracted in Sheet3 in MinMax.xlsm""!", vbInformation
+End Sub
+
+Sub AutoSaveAndClose()
+Application.Wait Now + TimeValue("00:00:01")
+    Dim fileName As String
+    Dim savePath As String
+    
+    ' Get the file name and path of the current workbook
+    fileName = ThisWorkbook.Name
+    savePath = ThisWorkbook.Path & "\" & fileName
+    
+    ' Save the workbook
+    ThisWorkbook.Save
+    
+    ' Close the workbook without saving changes (change False to True if you want to save changes)
+    ThisWorkbook.Close False
+End Sub
+
+
+
+
+
+
+
+
+
+
 
