@@ -366,6 +366,11 @@ Sub VMSTAT_Analyzer(savePath As String, LogFilePath As String, TotalMemory As Lo
         fso.DeleteFile (excelPath & "FINALoutputWithAllGRAPHs.xlsx")
     End If
     
+	' Check if the file "FINALoutputWithAllGRAPHsWithALLsmallPics.xlsx" already exists and delete it if it does
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    If fso.FileExists(excelPath & "FINALoutputWithAllGRAPHsWithALLsmallPics.xlsx") Then
+        fso.DeleteFile (excelPath & "FINALoutputWithAllGRAPHsWithALLsmallPics.xlsx")
+    End If
     
 Dim CurrentSheet As Worksheet
     Set CurrentSheet = ThisWorkbook.ActiveSheet ' Assuming the code is in the same workbook as the data
@@ -2406,14 +2411,5 @@ Application.Wait Now + TimeValue("00:00:01")
     ' Close the workbook without saving changes (change False to True if you want to save changes)
     ThisWorkbook.Close False
 End Sub
-
-
-
-
-
-
-
-
-
 
 
