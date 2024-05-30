@@ -62,6 +62,9 @@ Sub aaaaaaaaaaaaSetupAndFormatCellsAndAddButtons()
     ws.Range("N1").value = "VMSTAT-LOGPATH"
     ws.Range("O1").value = "TOTAL MEMORY OF SERVER"
 
+  ' Make them bold
+    ws.Range("L1:O1").Font.Bold = True
+	
     ' Set default values for the new steps
     ws.Range("B19").value = "Step ->1"
     ws.Range("B20").value = "Choose the directory of vmstat logs"
