@@ -202,7 +202,7 @@ Sub RunSub2()
     
     ' Pause for 1 seconds (specified in seconds)
     Application.Wait (Now + TimeValue("0:00:01"))
-    DeleteZeroSizedJPGs
+    DeleteSMALLSizedJPGs
     
     LoadAndArrangeImagesAndCreateExcel
     
@@ -1477,7 +1477,7 @@ End Function
 'This VBA script is designed to delete any zero-sized JPG files found within the directory
 'where the Excel 'workbook containing the script is located.
 
-Sub DeleteZeroSizedJPGs()
+Sub DeleteSMALLSizedJPGs()
     Dim objFSO As Object
     Dim objFolder As Object
     Dim objFile As Object
@@ -1485,7 +1485,10 @@ Sub DeleteZeroSizedJPGs()
     
     ' Create a FileSystemObject
     Set objFSO = CreateObject("Scripting.FileSystemObject")
-    
+	
+	' file size limit (5 KB) SET HERE
+     fileSizeLimit = 5120 ' 5 KB in bytes
+
     ' Get the current directory
     strFilePath = ThisWorkbook.Path
     
@@ -1495,7 +1498,7 @@ Sub DeleteZeroSizedJPGs()
     ' Loop through each file in the folder
     For Each objFile In objFolder.files
         ' Check if the file is a JPG and has zero size
-        If LCase(Right(objFile.Name, 4)) = ".jpg" And objFile.Size = 0 Then
+        If LCase(Right(objFile.Name, 4)) = ".jpg" And objFile.Size < fileSizeLimit Then
             ' Delete the file
             objFile.Delete
         End If
@@ -1506,7 +1509,7 @@ Sub DeleteZeroSizedJPGs()
     Set objFolder = Nothing
     Set objFSO = Nothing
     
-   'MsgBox "Zero-sized JPG files deleted successfully.", vbInformation
+   'MsgBox "SMALL-sized JPG files deleted successfully.", vbInformation
 End Sub
 
 '----------------------------------------------
@@ -2411,5 +2414,4 @@ Application.Wait Now + TimeValue("00:00:01")
     ' Close the workbook without saving changes (change False to True if you want to save changes)
     ThisWorkbook.Close False
 End Sub
-
 
