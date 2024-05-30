@@ -371,6 +371,13 @@ Sub VMSTAT_Analyzer(savePath As String, LogFilePath As String, TotalMemory As Lo
     If fso.FileExists(excelPath & "FINALoutputWithAllGRAPHsWithALLsmallPics.xlsx") Then
         fso.DeleteFile (excelPath & "FINALoutputWithAllGRAPHsWithALLsmallPics.xlsx")
     End If
+	
+	
+	' Check if the file "FINALoutputWithAllGRAPHEexceptProcessGraphWithALLsmallPics.xlsx" already exists and delete it if it does
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    If fso.FileExists(excelPath & "FINALoutputWithAllGRAPHEexceptProcessGraphWithALLsmallPics.xlsx") Then
+        fso.DeleteFile (excelPath & "FINALoutputWithAllGRAPHEexceptProcessGraphWithALLsmallPics.xlsx")
+    End If
     
 Dim CurrentSheet As Worksheet
     Set CurrentSheet = ThisWorkbook.ActiveSheet ' Assuming the code is in the same workbook as the data
@@ -1704,9 +1711,10 @@ Sub LoadAndArrangesSmallImagesAndCreateExcel()
     newWorkbook.SaveAs fileName:=excelPath & "FINALoutputWithAllGRAPHsWithALLsmallPics.xlsx"
     ' Close the new workbook
     newWorkbook.Close
-    
-     'MsgBox "Images loaded and arranged. New Excel file saved as FINALoutputWithAllGRAPHs.xlsx"
-    MsgBox "final output graphs and data and Images loaded and arranged and saved as FINALoutputWithAllGRAPHs.xlsx and FINALoutputWithAllGRAPHsWithALLsmallPics.xlsx -- Click On Ok to proceed to extract the minMax Data"
+	
+    LoadAndArrangesSmallImagesAndCreateExcelIgnoreProcessImages
+	
+   
 End Sub
 
 
@@ -2415,3 +2423,122 @@ Application.Wait Now + TimeValue("00:00:01")
     ThisWorkbook.Close False
 End Sub
 
+
+
+
+
+
+
+
+
+'----------------------------------------------
+'----------------------------------------------
+'----------------------------------------------
+'----------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+Sub LoadAndArrangesSmallImagesAndCreateExcelIgnoreProcessImages()
+    Dim fso As Object
+    Dim imagePath As String
+    Dim imgName As String
+    Dim imgCounter As Integer
+    Dim imgTop As Integer
+    Dim imgLeft As Integer
+    Dim imgWidth As Integer
+    Dim imgHeight As Integer
+    Dim imgShape As Shape
+    Dim columnOffset As Integer
+    Dim rowSpacing As Integer
+    Dim maxColumns As Integer
+    Dim maxRows As Integer
+    Dim files() As String
+    Dim i As Integer
+    Dim excelPath As String
+    Dim newWorkbook As Workbook
+    Dim newWorksheet As Worksheet
+    Dim imgFileSize As Double ' Variable to store image file size in KB
+    Dim fileSizeLimitToconsiderinKB As Double
+
+    ' Get Excel file directory path
+    excelPath = ThisWorkbook.Path & "\"
+    ' Set image path to Excel file directory
+    imagePath = excelPath
+    ' 600 = 600kb
+    fileSizeLimitToconsiderinKB = 500
+
+    ' Check if the file "FINALoutputWithAllGRAPHEexceptProcessGraphWithALLsmallPics.xlsx" already exists and delete it if it does
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    If fso.FileExists(excelPath & "FINALoutputWithAllGRAPHEexceptProcessGraphWithALLsmallPics.xlsx") Then
+        fso.DeleteFile (excelPath & "FINALoutputWithAllGRAPHEexceptProcessGraphWithALLsmallPics.xlsx")
+    End If
+    
+    ' Create a new Excel workbook
+    Set newWorkbook = Workbooks.Add
+    ' Set a reference to the first worksheet in the new workbook
+    Set newWorksheet = newWorkbook.Sheets(1)
+    
+    ' Set initial position and spacing
+    imgTop = 10
+    imgLeft = 10
+    columnOffset = 220 ' Width of one column
+    rowSpacing = 20 ' Adjust this value to set row spacing
+    maxColumns = 3 ' Number of columns
+    maxRows = 100 ' Maximum number of rows
+    
+    ' Get all files in the folder
+    imgCounter = 0
+    imgName = Dir(imagePath & "*.*")
+    Do While imgName <> ""
+        If (Right(imgName, 3) = "jpg" Or Right(imgName, 3) = "png") And InStr(1, imgName, "Process", vbTextCompare) = 0 Then
+            ' Check the size of the image file
+            imgFileSize = FileLen(imagePath & imgName) / 1024 ' Convert size to KB
+            If imgFileSize <= fileSizeLimitToconsiderinKB Then ' Check if size is less than or equal to 600KB
+                imgCounter = imgCounter + 1
+                ReDim Preserve files(1 To imgCounter)
+                files(imgCounter) = imgName
+            End If
+        End If
+        imgName = Dir ' Get next file
+    Loop
+    
+    ' Loop through each file and insert images into worksheet
+    For i = 1 To imgCounter
+        ' Insert the image as a shape
+        Set imgShape = newWorksheet.Shapes.AddPicture(fileName:=imagePath & files(i), _
+                                                      LinkToFile:=msoFalse, _
+                                                      SaveWithDocument:=msoTrue, _
+                                                      Left:=imgLeft, Top:=imgTop, Width:=-1, Height:=-1)
+        
+        ' Get image dimensions
+        imgWidth = imgShape.Width
+        imgHeight = imgShape.Height
+        
+        ' Move to the next column
+        imgLeft = imgLeft + imgWidth + columnOffset
+        
+        ' If maximum number of columns reached, move to the next row
+        If (i Mod maxColumns) = 0 Then
+            ' Reset left position
+            imgLeft = 10
+            ' Move to the next row
+            imgTop = imgTop + imgHeight + rowSpacing
+        End If
+    Next i
+    
+    ' Save the new workbook with the desired file name
+    newWorkbook.SaveAs fileName:=excelPath & "FINALoutputWithAllGRAPHEexceptProcessGraphWithALLsmallPics.xlsx"
+    ' Close the new workbook
+    newWorkbook.Close
+    
+    MsgBox "final output graphs and data and Images loaded and arranged and saved as FINALoutputWithAllGRAPHs.xlsx and FINALoutputWithAllGRAPHEexceptProcessGraphWithALLsmallPics.xlsx -- Click On Ok to proceed to extract the minMax Data"
+End Sub
