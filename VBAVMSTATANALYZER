@@ -27,7 +27,7 @@ Sub aaaaaaaaaaaaSetupAndFormatCellsAndAddButtons()
                  "2) Make sure you keep this analyzer Excel in that same folder and run it, otherwise, it won't work." & vbCrLf & _
                  "-----------" & vbCrLf & _
                  "To find Total memory of server use this command:" & vbCrLf & _
-                 "echo Hello, the memory size of $(hostname -I) in MB is $(awk '/MemTotal/ {print $2}' /proc/meminfo)"
+                 "echo Hello, the memory size of $(hostname -I) in MB is $(free -m|grep Mem|awk '{print ($2)}')"
         .HorizontalAlignment = xlCenter ' Center align the text
         .VerticalAlignment = xlTop ' Align the text to the top
         .WrapText = True ' Enable text wrapping
